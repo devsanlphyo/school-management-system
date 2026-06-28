@@ -1,0 +1,12 @@
+## Ignore Visual Studio Temporary Files and Build Outputs
+.vs/
+.vscode/
+[Bb]in/
+[Oo]bj/
+out/
+*.user
+*.userosscache
+*.sln.docstates
+
+## Ignore Git Worktrees Directory
+worktrees/
