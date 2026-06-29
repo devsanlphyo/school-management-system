@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMS · Design Prototypes</title>
+  <meta name="description" content="Initial design prototypes for the Schools Management System — dashboard, teachers, lesson plans, attendance, and leave requests." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── TOKENS ──────────────────────────────────────────────────────────── */
+    :root {
+      --bg:          #050810;
+      --surface:     rgba(255,255,255,0.035);
+      --surface-2:   rgba(255,255,255,0.06);
+      --border:      rgba(255,255,255,0.07);
+      --border-2:    rgba(255,255,255,0.12);
+      --text:        #f0f4ff;
+      --muted:       #8892a4;
+      --accent:      #6366f1;
+      --accent-2:    #8b5cf6;
+      --accent-3:    #06b6d4;
+      --green:       #10b981;
+      --amber:       #f59e0b;
+      --rose:        #f43f5e;
+      --sidebar-w:   240px;
+      --radius:      14px;
+      --radius-sm:   8px;
+    }
+
+    /* ─── RESET ───────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ─── AMBIENT GLOW ────────────────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 10% 5%,  rgba(99,102,241,.18) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 90% 90%, rgba(139,92,246,.14) 0%, transparent 55%),
+        radial-gradient(ellipse 40% 35% at 50% 50%, rgba(6,182,212,.06)  0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── SIDEBAR ─────────────────────────────────────────────────────────── */
+    #sidebar {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      width: var(--sidebar-w);
+      background: rgba(10,12,24,0.85);
+      backdrop-filter: blur(20px);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      padding: 0 0 1.5rem;
+    }
+
+    .sidebar-logo {
+      padding: 1.6rem 1.4rem 1.2rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+    .sidebar-logo .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+    }
+    .logo-icon {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      box-shadow: 0 0 18px rgba(99,102,241,.45);
+    }
+    .logo-text {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 1.05rem;
+      letter-spacing: -.5px;
+      background: linear-gradient(135deg, #fff 40%, #a5b4fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .logo-sub {
+      font-size: .62rem;
+      color: var(--muted);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .nav-section {
+      padding: 0 .75rem;
+      flex: 1;
+    }
+    .nav-label {
+      font-size: .62rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: .3rem .65rem .5rem;
+      margin-top: .5rem;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      padding: .65rem .75rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: .875rem;
+      font-weight: 500;
+      color: var(--muted);
+      transition: all .2s;
+      border: 1px solid transparent;
+      margin-bottom: 2px;
+      position: relative;
+    }
+    .nav-item:hover { color: var(--text); background: var(--surface); }
+    .nav-item.active {
+      color: var(--text);
+      background: linear-gradient(135deg, rgba(99,102,241,.2), rgba(139,92,246,.12));
+      border-color: rgba(99,102,241,.3);
+    }
+    .nav-item.active .nav-dot { opacity: 1; }
+    .nav-dot {
+      position: absolute;
+      right: .75rem;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      opacity: 0;
+      transition: opacity .2s;
+      box-shadow: 0 0 8px var(--accent);
+    }
+    .nav-icon { font-size: 1rem; width: 20px; text-align: center; }
+
+    .sidebar-footer {
+      padding: .75rem 1.4rem 0;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+    }
+    .avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: .75rem; font-weight: 700; color: #fff;
+      flex-shrink: 0;
+    }
+    .user-info { line-height: 1.3; }
+    .user-name { font-size: .8rem; font-weight: 600; }
+    .user-role { font-size: .68rem; color: var(--muted); }
+
+    /* ─── MAIN CONTENT ────────────────────────────────────────────────────── */
+    #main {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      overflow-y: auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ─── TOPBAR ──────────────────────────────────────────────────────────── */
+    .topbar {
+      position: sticky; top: 0;
+      background: rgba(5,8,16,.8);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: .85rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      z-index: 50;
+    }
+    .topbar-title {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1.05rem;
+      flex: 1;
+    }
+    .topbar-pills { display: flex; gap: .4rem; }
+    .pill {
+      padding: .3rem .75rem;
+      border-radius: 99px;
+      font-size: .72rem;
+      font-weight: 600;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .pill.active, .pill:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .topbar-badge {
+      padding: .25rem .7rem;
+      background: rgba(99,102,241,.15);
+      border: 1px solid rgba(99,102,241,.3);
+      border-radius: 99px;
+      font-size: .7rem;
+      font-weight: 600;
+      color: #a5b4fc;
+    }
+
+    /* ─── SCREEN WRAPPER ──────────────────────────────────────────────────── */
+    .screen { display: none; padding: 2rem; animation: fadeIn .35s ease; }
+    .screen.active { display: block; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ─── SECTION HEADER ──────────────────────────────────────────────────── */
+    .section-header { margin-bottom: 1.75rem; }
+    .section-header h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -.5px;
+      background: linear-gradient(135deg, #fff 40%, #a5b4fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: .3rem;
+    }
+    .section-header p { color: var(--muted); font-size: .875rem; }
+
+    /* ─── CARD ────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+      transition: border-color .25s, transform .2s, box-shadow .25s;
+    }
+    .card:hover {
+      border-color: var(--border-2);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    }
+
+    /* ─── STAT CARDS ──────────────────────────────────────────────────────── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      padding: 1.25rem 1.4rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, var(--glow-a, rgba(99,102,241,.1)), var(--glow-b, transparent));
+    }
+    .stat-card .stat-icon { font-size: 1.4rem; margin-bottom: .75rem; display: block; }
+    .stat-card .stat-val {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1;
+      margin-bottom: .3rem;
+    }
+    .stat-card .stat-label { font-size: .78rem; color: var(--muted); font-weight: 500; }
+    .stat-card .stat-change {
+      position: absolute;
+      top: 1rem; right: 1rem;
+      font-size: .68rem;
+      font-weight: 700;
+      padding: .2rem .5rem;
+      border-radius: 99px;
+    }
+    .stat-change.up   { background: rgba(16,185,129,.15); color: #34d399; }
+    .stat-change.down { background: rgba(244,63,94,.15);  color: #fb7185; }
+
+    /* ─── CONTENT GRID ────────────────────────────────────────────────────── */
+    .content-grid { display: grid; gap: 1rem; }
+    .col-2 { grid-template-columns: 1fr 1fr; }
+    .col-3 { grid-template-columns: 2fr 1fr; }
+
+    /* ─── CARD HEADER ─────────────────────────────────────────────────────── */
+    .card-header {
+      padding: 1.1rem 1.4rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+    }
+    .card-title { font-family: 'Outfit', sans-serif; font-size: .95rem; font-weight: 700; }
+    .card-subtitle { font-size: .72rem; color: var(--muted); margin-top: 1px; }
+    .card-action { font-size: .72rem; color: var(--accent); cursor: pointer; font-weight: 600; white-space: nowrap; }
+    .card-action:hover { color: #a5b4fc; }
+    .card-body { padding: 1.2rem 1.4rem; }
+
+    /* ─── TABLE ───────────────────────────────────────────────────────────── */
+    .proto-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    .proto-table th {
+      text-align: left;
+      padding: .5rem .75rem;
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .proto-table td { padding: .75rem .75rem; border-bottom: 1px solid var(--border); color: var(--text); }
+    .proto-table tr:last-child td { border-bottom: none; }
+    .proto-table tr:hover td { background: var(--surface); }
+
+    /* ─── BADGE ───────────────────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .3rem;
+      padding: .2rem .65rem;
+      border-radius: 99px;
+      font-size: .7rem;
+      font-weight: 700;
+    }
+    .badge::before { content: '●'; font-size: .5rem; }
+    .badge-green  { background: rgba(16,185,129,.15); color: #34d399; }
+    .badge-amber  { background: rgba(245,158,11,.15);  color: #fbbf24; }
+    .badge-rose   { background: rgba(244,63,94,.15);   color: #fb7185; }
+    .badge-indigo { background: rgba(99,102,241,.15);  color: #a5b4fc; }
+    .badge-cyan   { background: rgba(6,182,212,.15);   color: #67e8f9; }
+    .badge-purple { background: rgba(139,92,246,.15);  color: #c4b5fd; }
+
+    /* ─── AVATAR ROW ──────────────────────────────────────────────────────── */
+    .user-row { display: flex; align-items: center; gap: .65rem; }
+    .user-row .av {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .7rem; font-weight: 700; color: #fff;
+      flex-shrink: 0;
+    }
+    .user-row .uname { font-weight: 600; font-size: .82rem; }
+    .user-row .uemail { font-size: .68rem; color: var(--muted); }
+
+    /* ─── PROGRESS BAR ────────────────────────────────────────────────────── */
+    .prog-bar { background: rgba(255,255,255,.07); border-radius: 99px; height: 5px; overflow: hidden; }
+    .prog-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+
+    /* ─── ACTIVITY FEED ───────────────────────────────────────────────────── */
+    .activity-list { display: flex; flex-direction: column; gap: .75rem; }
+    .activity-item { display: flex; gap: .75rem; align-items: flex-start; }
+    .act-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: .35rem; flex-shrink: 0; }
+    .act-text { font-size: .82rem; line-height: 1.5; }
+    .act-time { font-size: .68rem; color: var(--muted); margin-top: 2px; }
+
+    /* ─── MINI CHART ──────────────────────────────────────────────────────── */
+    .mini-chart { display: flex; align-items: flex-end; gap: 4px; height: 50px; padding: .5rem 0; }
+    .bar-col {
+      flex: 1;
+      border-radius: 3px 3px 0 0;
+      background: linear-gradient(180deg, var(--accent), var(--accent-2));
+      opacity: .7;
+      transition: opacity .2s;
+      min-width: 8px;
+    }
+    .bar-col:hover { opacity: 1; }
+
+    /* ─── DONUT ───────────────────────────────────────────────────────────── */
+    .donut-wrap { display: flex; align-items: center; gap: 1.25rem; }
+    .donut-svg { flex-shrink: 0; }
+    .legend-list { display: flex; flex-direction: column; gap: .45rem; flex: 1; }
+    .legend-item { display: flex; align-items: center; gap: .5rem; font-size: .78rem; }
+    .legend-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+    /* ─── CALENDAR GRID ───────────────────────────────────────────────────── */
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; font-size: .72rem; }
+    .cal-header-cell {
+      text-align: center; padding: .3rem 0;
+      color: var(--muted); font-weight: 700; font-size: .65rem; letter-spacing: .05em;
+    }
+    .cal-cell {
+      aspect-ratio: 1;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 5px; cursor: pointer; font-weight: 500;
+      transition: background .15s; position: relative;
+    }
+    .cal-cell:hover { background: var(--surface-2); }
+    .cal-cell.today { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; font-weight: 700; }
+    .cal-cell.present { background: rgba(16,185,129,.2); color: #34d399; }
+    .cal-cell.absent  { background: rgba(244,63,94,.2);  color: #fb7185; }
+    .cal-cell.leave   { background: rgba(245,158,11,.2); color: #fbbf24; }
+    .cal-cell.empty   { opacity: 0; pointer-events: none; }
+
+    /* ─── LESSON CARD ─────────────────────────────────────────────────────── */
+    .lesson-card {
+      padding: 1rem 1.2rem;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--lc, var(--accent));
+      margin-bottom: .65rem;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .lesson-card:hover { background: var(--surface-2); transform: translateX(3px); }
+    .lesson-card .lc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: .35rem; }
+    .lesson-card .lc-subject { font-weight: 700; font-size: .88rem; }
+    .lesson-card .lc-meta { font-size: .75rem; color: var(--muted); }
+
+    /* ─── FORM ELEMENTS ───────────────────────────────────────────────────── */
+    .proto-form { display: flex; flex-direction: column; gap: 1rem; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-group { display: flex; flex-direction: column; gap: .35rem; }
+    .form-label {
+      font-size: .72rem; font-weight: 700;
+      color: var(--muted); letter-spacing: .04em; text-transform: uppercase;
+    }
+    .form-input {
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: .855rem;
+      padding: .65rem .9rem;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      width: 100%;
+    }
+    .form-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,.2); }
+    .form-input option { background: #0f1120; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .65rem 1.25rem;
+      border-radius: var(--radius-sm);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: .835rem; font-weight: 700;
+      cursor: pointer; border: 1px solid transparent;
+      transition: all .2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(99,102,241,.4);
+    }
+    .btn-primary:hover { box-shadow: 0 6px 22px rgba(99,102,241,.55); transform: translateY(-1px); }
+    .btn-ghost { background: var(--surface); border-color: var(--border-2); color: var(--text); }
+    .btn-ghost:hover { background: var(--surface-2); }
+    .btn-danger { background: rgba(244,63,94,.15); border-color: rgba(244,63,94,.3); color: #fb7185; }
+
+    /* ─── LEAVE REQUEST CARD ──────────────────────────────────────────────── */
+    .leave-card {
+      padding: 1.1rem 1.3rem;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      margin-bottom: .65rem;
+      display: flex; align-items: center; gap: 1rem;
+    }
+    .leave-card .lv-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+    .leave-card .lv-body { flex: 1; min-width: 0; }
+    .leave-card .lv-name { font-weight: 700; font-size: .88rem; margin-bottom: .2rem; }
+    .leave-card .lv-detail { font-size: .75rem; color: var(--muted); }
+    .leave-card .lv-actions { display: flex; gap: .5rem; flex-shrink: 0; }
+    .icon-btn {
+      width: 32px; height: 32px;
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .85rem; cursor: pointer;
+      border: 1px solid var(--border); background: var(--surface);
+      transition: all .2s;
+    }
+    .icon-btn.approve:hover { background: rgba(16,185,129,.2); border-color: rgba(16,185,129,.4); }
+    .icon-btn.reject:hover  { background: rgba(244,63,94,.2);  border-color: rgba(244,63,94,.4); }
+
+    /* ─── ANNOUNCEMENTS BANNER ────────────────────────────────────────────── */
+    .announce-banner {
+      background: linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.1));
+      border: 1px solid rgba(99,102,241,.25);
+      border-radius: var(--radius);
+      padding: 1rem 1.4rem;
+      display: flex; align-items: center; gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .announce-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .announce-body { flex: 1; }
+    .announce-title { font-weight: 700; font-size: .9rem; margin-bottom: .2rem; }
+    .announce-text { font-size: .78rem; color: var(--muted); }
+    .announce-dismiss { font-size: .7rem; color: var(--muted); cursor: pointer; }
+    .announce-dismiss:hover { color: var(--text); }
+
+    /* ─── PROFILE SECTION ─────────────────────────────────────────────────── */
+    .profile-hero {
+      background: linear-gradient(135deg, rgba(99,102,241,.12), rgba(139,92,246,.08));
+      border: 1px solid rgba(99,102,241,.2);
+      border-radius: var(--radius);
+      padding: 2rem;
+      display: flex; align-items: center; gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .profile-av {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem; font-weight: 800; color: #fff;
+      box-shadow: 0 0 24px rgba(99,102,241,.5);
+      flex-shrink: 0;
+    }
+    .profile-info h3 { font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 800; margin-bottom: .3rem; }
+    .profile-meta { display: flex; gap: .65rem; flex-wrap: wrap; margin-top: .5rem; }
+
+    /* ─── PROTOTYPE NOTE ──────────────────────────────────────────────────── */
+    .proto-note {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: rgba(10,12,24,.9);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-sm);
+      padding: .7rem 1rem;
+      font-size: .75rem; color: var(--muted);
+      z-index: 200;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .proto-note strong { color: var(--text); }
+
+    /* ─── SCROLLBAR ───────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 99px; }
+
+    /* ─── RESPONSIVE ──────────────────────────────────────────────────────── */
+    @media (max-width: 1100px) {
+      .stat-grid { grid-template-columns: repeat(2, 1fr); }
+      .col-2, .col-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════ SIDEBAR ═══════════════════════ -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-badge">
+      <div class="logo-icon">🏫</div>
+      <div>
+        <div class="logo-text">SMS</div>
+        <div class="logo-sub">Design Prototypes</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Main</div>
+    <div class="nav-item active" onclick="switchScreen('dashboard', this)">
+      <span class="nav-icon">📊</span> Dashboard
+      <span class="nav-dot"></span>
+    </div>
+    <div class="nav-item" onclick="switchScreen('teachers', this)">
+      <span class="nav-icon">👨‍🏫</span> Teachers
+      <span class="nav-dot"></span>
+    </div>
+    <div class="nav-item" onclick="switchScreen('lessonplans', this)">
+      <span class="nav-icon">📋</span> Lesson Plans
+      <span class="nav-dot"></span>
+    </div>
+    <div class="nav-item" onclick="switchScreen('attendance', this)">
+      <span class="nav-icon">🗓️</span> Attendance
+      <span class="nav-dot"></span>
+    </div>
+    <div class="nav-item" onclick="switchScreen('leave', this)">
+      <span class="nav-icon">📩</span> Leave Requests
+      <span class="nav-dot"></span>
+    </div>
+
+    <div class="nav-label" style="margin-top:1rem;">System</div>
+    <div class="nav-item" onclick="switchScreen('schools', this)">
+      <span class="nav-icon">🏛️</span> Schools
+      <span class="nav-dot"></span>
+    </div>
+    <div class="nav-item" onclick="switchScreen('profile', this)">
+      <span class="nav-icon">👤</span> Profile
+      <span class="nav-dot"></span>
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="avatar">AD</div>
+    <div class="user-info">
+      <div class="user-name">Admin User</div>
+      <div class="user-role">System Admin</div>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════════════ MAIN ═══════════════════════ -->
+<main id="main">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">📊 Dashboard</div>
+    <div class="topbar-pills">
+      <div class="pill active" onclick="setRole(this)">Admin</div>
+      <div class="pill" onclick="setRole(this)">Principal</div>
+      <div class="pill" onclick="setRole(this)">Teacher</div>
+    </div>
+    <div class="topbar-badge">✦ Prototype v0.1</div>
+  </div>
+
+  <!-- ─────────────── SCREEN: DASHBOARD ─────────────── -->
+  <div class="screen active" id="screen-dashboard">
+    <div class="section-header">
+      <h2>Good morning, Admin 👋</h2>
+      <p>Here's what's happening across all schools today — Sunday, 29 June 2026</p>
+    </div>
+
+    <div class="announce-banner">
+      <div class="announce-icon">📢</div>
+      <div class="announce-body">
+        <div class="announce-title">End of Term Reporting Deadline</div>
+        <div class="announce-text">All lesson plans and attendance records must be finalised by 5 July 2026. Please remind teachers to submit on time.</div>
+      </div>
+      <div class="announce-dismiss">✕ Dismiss</div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="card stat-card" style="--glow-a:rgba(99,102,241,.15)">
+        <span class="stat-icon">🏛️</span>
+        <div class="stat-val">12</div>
+        <div class="stat-label">Total Schools</div>
+        <div class="stat-change up">+2 this year</div>
+      </div>
+      <div class="card stat-card" style="--glow-a:rgba(16,185,129,.12)">
+        <span class="stat-icon">👨‍🏫</span>
+        <div class="stat-val">148</div>
+        <div class="stat-label">Active Teachers</div>
+        <div class="stat-change up">+8 this month</div>
+      </div>
+      <div class="card stat-card" style="--glow-a:rgba(245,158,11,.1)">
+        <span class="stat-icon">📩</span>
+        <div class="stat-val">23</div>
+        <div class="stat-label">Pending Leaves</div>
+        <div class="stat-change down">↑ 5 today</div>
+      </div>
+      <div class="card stat-card" style="--glow-a:rgba(6,182,212,.1)">
+        <span class="stat-icon">📋</span>
+        <div class="stat-val">94%</div>
+        <div class="stat-label">Lesson Plan Rate</div>
+        <div class="stat-change up">+3% vs last week</div>
+      </div>
+    </div>
+
+    <div class="content-grid col-3" style="margin-bottom:1rem;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Attendance Overview</div>
+            <div class="card-subtitle">Last 10 school days</div>
+          </div>
+          <div class="card-action">See details →</div>
+        </div>
+        <div class="card-body">
+          <div class="mini-chart" id="att-chart"></div>
+          <div style="display:flex;gap:1rem;margin-top:.75rem;">
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.72rem;color:var(--muted)">
+              <div style="width:10px;height:10px;border-radius:3px;background:linear-gradient(var(--accent),var(--accent-2))"></div> Present
+            </div>
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.72rem;color:var(--muted)">
+              <div style="width:10px;height:10px;border-radius:3px;background:rgba(255,255,255,.1)"></div> Absent
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Pending Actions</div></div>
+        <div class="card-body">
+          <div class="donut-wrap">
+            <svg class="donut-svg" width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="30" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="10"/>
+              <circle cx="40" cy="40" r="30" fill="none" stroke="url(#g1)" stroke-width="10"
+                stroke-dasharray="113 75" stroke-dashoffset="0" stroke-linecap="round" transform="rotate(-90 40 40)"/>
+              <circle cx="40" cy="40" r="30" fill="none" stroke="#f59e0b" stroke-width="10"
+                stroke-dasharray="40 148" stroke-dashoffset="-113" stroke-linecap="round" transform="rotate(-90 40 40)"/>
+              <circle cx="40" cy="40" r="30" fill="none" stroke="#f43f5e" stroke-width="10"
+                stroke-dasharray="35 153" stroke-dashoffset="-153" stroke-linecap="round" transform="rotate(-90 40 40)"/>
+              <defs>
+                <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#6366f1"/>
+                  <stop offset="100%" stop-color="#8b5cf6"/>
+                </linearGradient>
+              </defs>
+              <text x="40" y="44" text-anchor="middle" fill="#f0f4ff" font-size="11" font-weight="700" font-family="Outfit">23</text>
+            </svg>
+            <div class="legend-list">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div><span>Leave Requests</span><span style="margin-left:auto;font-weight:700">12</span></div>
+              <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div><span>Lesson Plans</span><span style="margin-left:auto;font-weight:700">7</span></div>
+              <div class="legend-item"><div class="legend-dot" style="background:#f43f5e"></div><span>Attendance Gaps</span><span style="margin-left:auto;font-weight:700">4</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content-grid col-2">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Recent Activity</div>
+          <div class="card-action">View all</div>
+        </div>
+        <div class="card-body">
+          <div class="activity-list">
+            <div class="activity-item">
+              <div class="act-dot" style="background:#34d399"></div>
+              <div><div class="act-text"><strong>Aye Thida</strong> submitted attendance for Grade 8A</div><div class="act-time">2 minutes ago</div></div>
+            </div>
+            <div class="activity-item">
+              <div class="act-dot" style="background:#fbbf24"></div>
+              <div><div class="act-text"><strong>Kyaw Zin</strong> submitted a leave request (3 days)</div><div class="act-time">18 minutes ago</div></div>
+            </div>
+            <div class="activity-item">
+              <div class="act-dot" style="background:var(--accent)"></div>
+              <div><div class="act-text"><strong>Moe Moe San</strong> uploaded a lesson plan for Maths</div><div class="act-time">45 minutes ago</div></div>
+            </div>
+            <div class="activity-item">
+              <div class="act-dot" style="background:#fb7185"></div>
+              <div><div class="act-text"><strong>Admin</strong> rejected leave request from Zaw Lin</div><div class="act-time">1 hour ago</div></div>
+            </div>
+            <div class="activity-item">
+              <div class="act-dot" style="background:#67e8f9"></div>
+              <div><div class="act-text"><strong>Thida Oo</strong> created a lesson plan for Science</div><div class="act-time">2 hours ago</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">School Compliance</div>
+          <div class="card-subtitle">Lesson plan submission rate</div>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;flex-direction:column;gap:.9rem;">
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.35rem;">
+                <span>Yangon No. 1 High School</span><span style="font-weight:700;color:#34d399">98%</span>
+              </div>
+              <div class="prog-bar"><div class="prog-fill" style="width:98%"></div></div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.35rem;">
+                <span>Mandalay Basic Education</span><span style="font-weight:700;color:#34d399">91%</span>
+              </div>
+              <div class="prog-bar"><div class="prog-fill" style="width:91%"></div></div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.35rem;">
+                <span>Bago Township School</span><span style="font-weight:700;color:#fbbf24">78%</span>
+              </div>
+              <div class="prog-bar"><div class="prog-fill" style="width:78%;background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div></div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.35rem;">
+                <span>Sagaing High School</span><span style="font-weight:700;color:#fbbf24">65%</span>
+              </div>
+              <div class="prog-bar"><div class="prog-fill" style="width:65%;background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div></div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.35rem;">
+                <span>Mawlamyine Primary</span><span style="font-weight:700;color:#fb7185">42%</span>
+              </div>
+              <div class="prog-bar"><div class="prog-fill" style="width:42%;background:linear-gradient(90deg,#f43f5e,#fb7185)"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── SCREEN: TEACHERS ─────────────── -->
+  <div class="screen" id="screen-teachers">
+    <div class="section-header">
+      <h2>Teachers</h2>
+      <p>Manage teacher accounts, roles, and school assignments across the system.</p>
+    </div>
+
+    <div style="display:flex;gap:.65rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center;">
+      <input class="form-input" style="max-width:240px" type="text" placeholder="🔍  Search teachers..." />
+      <select class="form-input" style="max-width:160px">
+        <option>All Schools</option>
+        <option>Yangon No. 1</option>
+        <option>Mandalay BE</option>
+        <option>Bago Township</option>
+      </select>
+      <select class="form-input" style="max-width:140px">
+        <option>All Roles</option>
+        <option>Principal</option>
+        <option>Teacher</option>
+      </select>
+      <div style="margin-left:auto">
+        <button class="btn btn-primary">＋ Add Teacher</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="proto-table">
+        <thead>
+          <tr>
+            <th>Teacher</th>
+            <th>School</th>
+            <th>Role</th>
+            <th>Lesson Plans</th>
+            <th>Attendance Rate</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="user-row"><div class="av" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)">AT</div><div><div class="uname">Aye Thida</div><div class="uemail">aye.thida@yangon1.edu.mm</div></div></div></td>
+            <td>Yangon No. 1</td>
+            <td><span class="badge badge-indigo">Teacher</span></td>
+            <td>14 / 15 <span style="color:var(--muted);font-size:.7rem">(93%)</span></td>
+            <td><div style="display:flex;align-items:center;gap:.5rem"><div class="prog-bar" style="width:70px"><div class="prog-fill" style="width:97%"></div></div><span style="font-size:.72rem">97%</span></div></td>
+            <td><span class="badge badge-green">Active</span></td>
+            <td><div style="display:flex;gap:.4rem"><button class="btn btn-ghost" style="padding:.3rem .6rem;font-size:.72rem">Edit</button><button class="btn btn-danger" style="padding:.3rem .6rem;font-size:.72rem">Deactivate</button></div></td>
+          </tr>
+          <tr>
+            <td><div class="user-row"><div class="av" style="background:linear-gradient(135deg,#06b6d4,#0284c7)">KZ</div><div><div class="uname">Kyaw Zin</div><div class="uemail">kyaw.zin@mandalay.edu.mm</div></div></div></td>
+            <td>Mandalay BE</td>
+            <td><span class="badge badge-purple">Principal</span></td>
+            <td>10 / 10 <span style="color:var(--muted);font-size:.7rem">(100%)</span></td>
+            <td><div style="display:flex;align-items:center;gap:.5rem"><div class="prog-bar" style="width:70px"><div class="prog-fill" style="width:88%"></div></div><span style="font-size:.72rem">88%</span></div></td>
+            <td><span class="badge badge-green">Active</span></td>
+            <td><div style="display:flex;gap:.4rem"><button class="btn btn-ghost" style="padding:.3rem .6rem;font-size:.72rem">Edit</button><button class="btn btn-danger" style="padding:.3rem .6rem;font-size:.72rem">Deactivate</button></div></td>
+          </tr>
+          <tr>
+            <td><div class="user-row"><div class="av" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">MM</div><div><div class="uname">Moe Moe San</div><div class="uemail">moemoe@bago.edu.mm</div></div></div></td>
+            <td>Bago Township</td>
+            <td><span class="badge badge-indigo">Teacher</span></td>
+            <td>8 / 15 <span style="color:var(--muted);font-size:.7rem">(53%)</span></td>
+            <td><div style="display:flex;align-items:center;gap:.5rem"><div class="prog-bar" style="width:70px"><div class="prog-fill" style="width:72%;background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div></div><span style="font-size:.72rem">72%</span></div></td>
+            <td><span class="badge badge-amber">On Leave</span></td>
+            <td><div style="display:flex;gap:.4rem"><button class="btn btn-ghost" style="padding:.3rem .6rem;font-size:.72rem">Edit</button><button class="btn btn-danger" style="padding:.3rem .6rem;font-size:.72rem">Deactivate</button></div></td>
+          </tr>
+          <tr>
+            <td><div class="user-row"><div class="av" style="background:linear-gradient(135deg,#10b981,#06b6d4)">TO</div><div><div class="uname">Thida Oo</div><div class="uemail">thida.oo@sagaing.edu.mm</div></div></div></td>
+            <td>Sagaing High</td>
+            <td><span class="badge badge-indigo">Teacher</span></td>
+            <td>5 / 15 <span style="color:var(--muted);font-size:.7rem">(33%)</span></td>
+            <td><div style="display:flex;align-items:center;gap:.5rem"><div class="prog-bar" style="width:70px"><div class="prog-fill" style="width:60%;background:linear-gradient(90deg,#f43f5e,#fb7185)"></div></div><span style="font-size:.72rem">60%</span></div></td>
+            <td><span class="badge badge-rose">Inactive</span></td>
+            <td><div style="display:flex;gap:.4rem"><button class="btn btn-ghost" style="padding:.3rem .6rem;font-size:.72rem">Edit</button><button class="btn btn-ghost" style="padding:.3rem .6rem;font-size:.72rem">Reactivate</button></div></td>
+          </tr>
+          <tr>
+            <td><div class="user-row"><div class="av" style="background:linear-gradient(135deg,#8b5cf6,#ec4899)">ZL</div><div><div class="uname">Zaw Lin</div><div class="uemail">zaw.lin@mawlamyine.edu.mm</div></div></div></td>
+            <td>Mawlamyine</td>
+            <td><span class="badge badge-indigo">Teacher</span></td>
+            <td>12 / 15 <span style="color:var(--muted);font-size:.7rem">(80%)</span></td>
+            <td><div style="display:flex;align-items:center;gap:.5rem"><div class="prog-bar" style="width:70px"><div class="prog-fill" style="width:82%"></div></div><span style="font-size:.72rem">82%</span></div></td>
+            <td><span class="badge badge-green">Active</span></td>
+            <td><div style="display:flex;gap:.4rem"><button class="btn btn-ghost" style="padding:.3rem .6rem;font-size:.72rem">Edit</button><button class="btn btn-danger" style="padding:.3rem .6rem;font-size:.72rem">Deactivate</button></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ─────────────── SCREEN: LESSON PLANS ─────────────── -->
+  <div class="screen" id="screen-lessonplans">
+    <div class="section-header">
+      <h2>Lesson Plans</h2>
+      <p>Review, approve, and track lesson plans submitted by teachers.</p>
+    </div>
+
+    <div class="content-grid col-2">
+      <div>
+        <div style="display:flex;gap:.65rem;margin-bottom:1rem;align-items:center;">
+          <select class="form-input" style="max-width:150px">
+            <option>All Subjects</option><option>Mathematics</option><option>Science</option><option>English</option><option>History</option>
+          </select>
+          <select class="form-input" style="max-width:150px">
+            <option>All Grades</option><option>Grade 6</option><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option>
+          </select>
+          <button class="btn btn-primary" style="margin-left:auto">＋ New Plan</button>
+        </div>
+
+        <div class="lesson-card" style="--lc:#6366f1">
+          <div class="lc-top"><div class="lc-subject">📐 Mathematics — Algebra Fundamentals</div><span class="badge badge-green">Approved</span></div>
+          <div class="lc-meta">Grade 8A · Aye Thida · Week 24 (16–20 Jun)</div>
+        </div>
+        <div class="lesson-card" style="--lc:#06b6d4">
+          <div class="lc-top"><div class="lc-subject">🔬 Science — Photosynthesis &amp; Plants</div><span class="badge badge-amber">Pending Review</span></div>
+          <div class="lc-meta">Grade 7B · Thida Oo · Week 25 (23–27 Jun)</div>
+        </div>
+        <div class="lesson-card" style="--lc:#8b5cf6">
+          <div class="lc-top"><div class="lc-subject">📖 English — Narrative Writing</div><span class="badge badge-green">Approved</span></div>
+          <div class="lc-meta">Grade 9A · Zaw Lin · Week 24 (16–20 Jun)</div>
+        </div>
+        <div class="lesson-card" style="--lc:#f59e0b">
+          <div class="lc-top"><div class="lc-subject">📜 History — Colonial Era Myanmar</div><span class="badge badge-rose">Revision Needed</span></div>
+          <div class="lc-meta">Grade 10B · Moe Moe San · Week 23 (9–13 Jun)</div>
+        </div>
+        <div class="lesson-card" style="--lc:#10b981">
+          <div class="lc-top"><div class="lc-subject">🧮 Mathematics — Trigonometry Intro</div><span class="badge badge-amber">Pending Review</span></div>
+          <div class="lc-meta">Grade 10A · Kyaw Zin · Week 25 (23–27 Jun)</div>
+        </div>
+        <div class="lesson-card" style="--lc:#ec4899">
+          <div class="lc-top"><div class="lc-subject">🌍 Geography — River Systems</div><span class="badge badge-green">Approved</span></div>
+          <div class="lc-meta">Grade 6C · Aye Thida · Week 25 (23–27 Jun)</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">New Lesson Plan</div><div class="card-subtitle">Fill in the lesson plan details below</div></div>
+        </div>
+        <div class="card-body">
+          <form class="proto-form" onsubmit="return false">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Subject</label>
+                <select class="form-input"><option>Mathematics</option><option>Science</option><option>English</option><option>History</option><option>Geography</option></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Grade / Class</label>
+                <select class="form-input"><option>Grade 6A</option><option>Grade 7B</option><option>Grade 8A</option><option>Grade 9A</option><option>Grade 10B</option></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Lesson Title</label>
+              <input class="form-input" type="text" placeholder="e.g. Introduction to Quadratic Equations" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Week Start</label>
+                <input class="form-input" type="date" value="2026-06-29" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Week End</label>
+                <input class="form-input" type="date" value="2026-07-03" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Objectives</label>
+              <textarea class="form-input" rows="3" placeholder="Students will be able to..."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Teaching Materials</label>
+              <input class="form-input" type="text" placeholder="Textbook, worksheets, projector..." />
+            </div>
+            <div style="display:flex;gap:.65rem;margin-top:.5rem;">
+              <button class="btn btn-primary" style="flex:1">Save &amp; Submit</button>
+              <button class="btn btn-ghost">Save Draft</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── SCREEN: ATTENDANCE ─────────────── -->
+  <div class="screen" id="screen-attendance">
+    <div class="section-header">
+      <h2>Attendance</h2>
+      <p>Monitor and record daily teacher attendance across all schools.</p>
+    </div>
+
+    <div class="content-grid col-2">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">June 2026</div>
+          <div style="display:flex;gap:.5rem">
+            <button class="btn btn-ghost" style="padding:.3rem .6rem;font-size:.8rem">&#8249;</button>
+            <button class="btn btn-ghost" style="padding:.3rem .6rem;font-size:.8rem">&#8250;</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="cal-grid">
+            <div class="cal-header-cell">Sun</div><div class="cal-header-cell">Mon</div><div class="cal-header-cell">Tue</div>
+            <div class="cal-header-cell">Wed</div><div class="cal-header-cell">Thu</div><div class="cal-header-cell">Fri</div><div class="cal-header-cell">Sat</div>
+            <div class="cal-cell empty"></div>
+            <div class="cal-cell present">2</div><div class="cal-cell present">3</div><div class="cal-cell present">4</div>
+            <div class="cal-cell present">5</div><div class="cal-cell present">6</div><div class="cal-cell">7</div>
+            <div class="cal-cell">8</div><div class="cal-cell present">9</div><div class="cal-cell absent">10</div>
+            <div class="cal-cell present">11</div><div class="cal-cell leave">12</div><div class="cal-cell present">13</div><div class="cal-cell">14</div>
+            <div class="cal-cell">15</div><div class="cal-cell present">16</div><div class="cal-cell present">17</div>
+            <div class="cal-cell present">18</div><div class="cal-cell present">19</div><div class="cal-cell present">20</div><div class="cal-cell">21</div>
+            <div class="cal-cell">22</div><div class="cal-cell present">23</div><div class="cal-cell present">24</div>
+            <div class="cal-cell present">25</div><div class="cal-cell present">26</div><div class="cal-cell absent">27</div><div class="cal-cell">28</div>
+            <div class="cal-cell today">29</div><div class="cal-cell">30</div>
+            <div class="cal-cell empty"></div><div class="cal-cell empty"></div><div class="cal-cell empty"></div><div class="cal-cell empty"></div><div class="cal-cell empty"></div>
+          </div>
+          <div style="display:flex;gap:1rem;margin-top:1rem;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.7rem;"><div style="width:10px;height:10px;border-radius:3px;background:rgba(16,185,129,.4)"></div>Present</div>
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.7rem;"><div style="width:10px;height:10px;border-radius:3px;background:rgba(244,63,94,.4)"></div>Absent</div>
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.7rem;"><div style="width:10px;height:10px;border-radius:3px;background:rgba(245,158,11,.4)"></div>Leave</div>
+            <div style="display:flex;align-items:center;gap:.4rem;font-size:.7rem;"><div style="width:10px;height:10px;border-radius:3px;background:linear-gradient(135deg,var(--accent),var(--accent-2))"></div>Today</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">Mark Attendance</div><div class="card-subtitle">Sunday, 29 June 2026</div></div>
+          <button class="btn btn-primary" style="padding:.45rem .9rem;font-size:.78rem">Save All</button>
+        </div>
+        <div class="card-body" style="padding:0">
+          <table class="proto-table">
+            <thead>
+              <tr><th>Teacher</th><th>Status</th><th>Note</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="user-row" style="gap:.5rem"><div class="av" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);width:26px;height:26px;font-size:.65rem">AT</div><span style="font-weight:600;font-size:.82rem">Aye Thida</span></div></td>
+                <td><select class="form-input" style="padding:.3rem .6rem;font-size:.75rem"><option>Present</option><option>Absent</option><option>Leave</option></select></td>
+                <td><input class="form-input" type="text" style="padding:.3rem .6rem;font-size:.75rem" placeholder="Optional..." /></td>
+              </tr>
+              <tr>
+                <td><div class="user-row" style="gap:.5rem"><div class="av" style="background:linear-gradient(135deg,#06b6d4,#0284c7);width:26px;height:26px;font-size:.65rem">KZ</div><span style="font-weight:600;font-size:.82rem">Kyaw Zin</span></div></td>
+                <td><select class="form-input" style="padding:.3rem .6rem;font-size:.75rem"><option>Present</option><option>Absent</option><option>Leave</option></select></td>
+                <td><input class="form-input" type="text" style="padding:.3rem .6rem;font-size:.75rem" placeholder="Optional..." /></td>
+              </tr>
+              <tr>
+                <td><div class="user-row" style="gap:.5rem"><div class="av" style="background:linear-gradient(135deg,#f59e0b,#ef4444);width:26px;height:26px;font-size:.65rem">MM</div><span style="font-weight:600;font-size:.82rem">Moe Moe San</span></div></td>
+                <td><select class="form-input" style="padding:.3rem .6rem;font-size:.75rem"><option>Leave</option><option>Present</option><option>Absent</option></select></td>
+                <td><input class="form-input" type="text" style="padding:.3rem .6rem;font-size:.75rem" value="Annual leave" /></td>
+              </tr>
+              <tr>
+                <td><div class="user-row" style="gap:.5rem"><div class="av" style="background:linear-gradient(135deg,#10b981,#06b6d4);width:26px;height:26px;font-size:.65rem">TO</div><span style="font-weight:600;font-size:.82rem">Thida Oo</span></div></td>
+                <td><select class="form-input" style="padding:.3rem .6rem;font-size:.75rem"><option>Absent</option><option>Present</option><option>Leave</option></select></td>
+                <td><input class="form-input" type="text" style="padding:.3rem .6rem;font-size:.75rem" placeholder="Optional..." /></td>
+              </tr>
+              <tr>
+                <td><div class="user-row" style="gap:.5rem"><div class="av" style="background:linear-gradient(135deg,#8b5cf6,#ec4899);width:26px;height:26px;font-size:.65rem">ZL</div><span style="font-weight:600;font-size:.82rem">Zaw Lin</span></div></td>
+                <td><select class="form-input" style="padding:.3rem .6rem;font-size:.75rem"><option>Present</option><option>Absent</option><option>Leave</option></select></td>
+                <td><input class="form-input" type="text" style="padding:.3rem .6rem;font-size:.75rem" placeholder="Optional..." /></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── SCREEN: LEAVE REQUESTS ─────────────── -->
+  <div class="screen" id="screen-leave">
+    <div class="section-header">
+      <h2>Leave Requests</h2>
+      <p>Review and action pending leave requests from teachers.</p>
+    </div>
+
+    <div class="content-grid col-3">
+      <div>
+        <div style="display:flex;gap:.5rem;margin-bottom:1.25rem;">
+          <div class="pill active">All (23)</div>
+          <div class="pill">Pending (12)</div>
+          <div class="pill">Approved (8)</div>
+          <div class="pill">Rejected (3)</div>
+        </div>
+
+        <div class="leave-card">
+          <div class="lv-icon" style="background:rgba(245,158,11,.15)">🌴</div>
+          <div class="lv-body">
+            <div class="lv-name">Kyaw Zin <span class="badge badge-amber" style="margin-left:.35rem">Annual Leave</span></div>
+            <div class="lv-detail">1 Jul – 3 Jul 2026 (3 days) · Mandalay BE · Submitted 29 Jun</div>
+          </div>
+          <div class="lv-actions"><div class="icon-btn approve" title="Approve">✓</div><div class="icon-btn reject" title="Reject">✕</div></div>
+        </div>
+
+        <div class="leave-card">
+          <div class="lv-icon" style="background:rgba(239,68,68,.15)">🏥</div>
+          <div class="lv-body">
+            <div class="lv-name">Thida Oo <span class="badge badge-rose" style="margin-left:.35rem">Medical Leave</span></div>
+            <div class="lv-detail">30 Jun 2026 (1 day) · Sagaing High · Submitted 28 Jun</div>
+          </div>
+          <div class="lv-actions"><div class="icon-btn approve" title="Approve">✓</div><div class="icon-btn reject" title="Reject">✕</div></div>
+        </div>
+
+        <div class="leave-card" style="opacity:.6">
+          <div class="lv-icon" style="background:rgba(16,185,129,.15)">✅</div>
+          <div class="lv-body">
+            <div class="lv-name">Aye Thida <span class="badge badge-green" style="margin-left:.35rem">Approved</span></div>
+            <div class="lv-detail">15 Jun 2026 (1 day) · Yangon No. 1 · Approved by Admin</div>
+          </div>
+          <div class="lv-actions"><div class="icon-btn" title="View">👁</div></div>
+        </div>
+
+        <div class="leave-card" style="opacity:.6">
+          <div class="lv-icon" style="background:rgba(244,63,94,.15)">❌</div>
+          <div class="lv-body">
+            <div class="lv-name">Zaw Lin <span class="badge badge-rose" style="margin-left:.35rem">Rejected</span></div>
+            <div class="lv-detail">20 Jun 2026 (2 days) · Mawlamyine · Rejected by Admin</div>
+          </div>
+          <div class="lv-actions"><div class="icon-btn" title="View">👁</div></div>
+        </div>
+
+        <div class="leave-card">
+          <div class="lv-icon" style="background:rgba(99,102,241,.15)">📋</div>
+          <div class="lv-body">
+            <div class="lv-name">Moe Moe San <span class="badge badge-amber" style="margin-left:.35rem">Study Leave</span></div>
+            <div class="lv-detail">7 Jul – 11 Jul 2026 (5 days) · Bago Township · Submitted 27 Jun</div>
+          </div>
+          <div class="lv-actions"><div class="icon-btn approve" title="Approve">✓</div><div class="icon-btn reject" title="Reject">✕</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">Submit Leave Request</div><div class="card-subtitle">Teacher-facing submission form</div></div>
+        </div>
+        <div class="card-body">
+          <form class="proto-form" onsubmit="return false">
+            <div class="form-group">
+              <label class="form-label">Leave Type</label>
+              <select class="form-input">
+                <option>Annual Leave</option><option>Medical Leave</option>
+                <option>Study Leave</option><option>Emergency Leave</option><option>Maternity / Paternity Leave</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Start Date</label>
+                <input class="form-input" type="date" value="2026-07-01" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">End Date</label>
+                <input class="form-input" type="date" value="2026-07-03" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Reason</label>
+              <textarea class="form-input" rows="4" placeholder="Describe the reason for your leave request..."></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Supporting Document</label>
+              <input class="form-input" type="text" placeholder="Medical certificate, etc. (optional)" />
+            </div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;">Submit Request</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── SCREEN: SCHOOLS ─────────────── -->
+  <div class="screen" id="screen-schools">
+    <div class="section-header">
+      <h2>Schools</h2>
+      <p>Manage all school entities registered in the system.</p>
+    </div>
+
+    <div style="display:flex;gap:.65rem;margin-bottom:1.25rem;align-items:center;">
+      <input class="form-input" style="max-width:260px" type="text" placeholder="🔍  Search schools..." />
+      <div style="margin-left:auto"><button class="btn btn-primary">＋ Add School</button></div>
+    </div>
+
+    <div class="content-grid col-2">
+      <div class="card">
+        <table class="proto-table">
+          <thead>
+            <tr><th>School Name</th><th>Township</th><th>Teachers</th><th>Compliance</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div style="font-weight:700;font-size:.85rem">Yangon No. 1 High School</div></td>
+              <td style="color:var(--muted)">Lanmadaw</td><td>42</td>
+              <td><span style="color:#34d399;font-weight:700">98%</span></td>
+              <td><span class="badge badge-green">Active</span></td>
+            </tr>
+            <tr>
+              <td><div style="font-weight:700;font-size:.85rem">Mandalay Basic Education HS</div></td>
+              <td style="color:var(--muted)">Aungmyethazan</td><td>35</td>
+              <td><span style="color:#34d399;font-weight:700">91%</span></td>
+              <td><span class="badge badge-green">Active</span></td>
+            </tr>
+            <tr>
+              <td><div style="font-weight:700;font-size:.85rem">Bago Township School</div></td>
+              <td style="color:var(--muted)">Bago</td><td>28</td>
+              <td><span style="color:#fbbf24;font-weight:700">78%</span></td>
+              <td><span class="badge badge-amber">Review</span></td>
+            </tr>
+            <tr>
+              <td><div style="font-weight:700;font-size:.85rem">Sagaing High School</div></td>
+              <td style="color:var(--muted)">Sagaing</td><td>19</td>
+              <td><span style="color:#fbbf24;font-weight:700">65%</span></td>
+              <td><span class="badge badge-amber">Review</span></td>
+            </tr>
+            <tr>
+              <td><div style="font-weight:700;font-size:.85rem">Mawlamyine Primary</div></td>
+              <td style="color:var(--muted)">Mawlamyine</td><td>24</td>
+              <td><span style="color:#fb7185;font-weight:700">42%</span></td>
+              <td><span class="badge badge-rose">Low Compliance</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Add New School</div></div>
+        <div class="card-body">
+          <form class="proto-form" onsubmit="return false">
+            <div class="form-group">
+              <label class="form-label">School Name</label>
+              <input class="form-input" type="text" placeholder="e.g. Pyay Township High School" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Township</label>
+                <input class="form-input" type="text" placeholder="Township name" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Region</label>
+                <select class="form-input">
+                  <option>Yangon Region</option><option>Mandalay Region</option>
+                  <option>Bago Region</option><option>Sagaing Region</option>
+                  <option>Mon State</option><option>Other</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Assign Principal</label>
+              <select class="form-input">
+                <option>— Select a principal —</option>
+                <option>Kyaw Zin</option><option>Aye Thida</option><option>Thida Oo</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Address</label>
+              <textarea class="form-input" rows="2" placeholder="Full school address..."></textarea>
+            </div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;">Create School</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── SCREEN: PROFILE ─────────────── -->
+  <div class="screen" id="screen-profile">
+    <div class="section-header">
+      <h2>My Profile</h2>
+      <p>Manage your account details and preferences.</p>
+    </div>
+
+    <div class="profile-hero">
+      <div class="profile-av">AD</div>
+      <div class="profile-info">
+        <h3>Admin User</h3>
+        <div style="color:var(--muted);font-size:.85rem">admin@schools.gov.mm</div>
+        <div class="profile-meta">
+          <span class="badge badge-indigo">System Admin</span>
+          <span class="badge badge-cyan">All Schools</span>
+          <span class="badge badge-green">Active</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content-grid col-2">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Personal Information</div></div>
+        <div class="card-body">
+          <form class="proto-form" onsubmit="return false">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">First Name</label>
+                <input class="form-input" type="text" value="Admin" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Last Name</label>
+                <input class="form-input" type="text" value="User" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input class="form-input" type="email" value="admin@schools.gov.mm" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Role</label>
+              <input class="form-input" type="text" value="System Admin" readonly style="opacity:.6;cursor:not-allowed" />
+            </div>
+            <button class="btn btn-primary">Save Changes</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Change Password</div></div>
+        <div class="card-body">
+          <form class="proto-form" onsubmit="return false">
+            <div class="form-group">
+              <label class="form-label">Current Password</label>
+              <input class="form-input" type="password" placeholder="••••••••" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">New Password</label>
+              <input class="form-input" type="password" placeholder="••••••••" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Confirm New Password</label>
+              <input class="form-input" type="password" placeholder="••••••••" />
+            </div>
+            <button class="btn btn-primary">Update Password</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Prototype notice -->
+<div class="proto-note">
+  🎨 <strong>Design Prototype</strong> · Click the nav items to explore screens
+</div>
+
+<script>
+  // ─── Navigation ─────────────────────────────────────────────────────────────
+  const screenTitles = {
+    dashboard:   '📊 Dashboard',
+    teachers:    '👨‍🏫 Teachers',
+    lessonplans: '📋 Lesson Plans',
+    attendance:  '🗓️ Attendance',
+    leave:       '📩 Leave Requests',
+    schools:     '🏛️ Schools',
+    profile:     '👤 Profile',
+  };
+
+  function switchScreen(name, el) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('screen-' + name).classList.add('active');
+    el.classList.add('active');
+    document.getElementById('topbar-title').textContent = screenTitles[name];
+    document.getElementById('main').scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function setRole(el) {
+    document.querySelectorAll('.topbar-pills .pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // ─── Attendance bar chart ────────────────────────────────────────────────────
+  const attData = [92, 88, 95, 73, 90, 85, 96, 80, 91, 87];
+  const chartEl = document.getElementById('att-chart');
+  const maxVal  = Math.max(...attData);
+  attData.forEach((v, i) => {
+    const bar = document.createElement('div');
+    bar.className = 'bar-col';
+    bar.style.height = (v / maxVal * 100) + '%';
+    bar.title = `Day ${i + 1}: ${v}% present`;
+    chartEl.appendChild(bar);
+  });
+
+  // ─── Dismiss announcement ────────────────────────────────────────────────────
+  document.querySelector('.announce-dismiss').addEventListener('click', function () {
+    this.closest('.announce-banner').style.display = 'none';
+  });
+
+  // ─── Leave filter pills ──────────────────────────────────────────────────────
+  document.querySelectorAll('#screen-leave .pill').forEach(pill => {
+    pill.addEventListener('click', function () {
+      document.querySelectorAll('#screen-leave .pill').forEach(p => p.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
