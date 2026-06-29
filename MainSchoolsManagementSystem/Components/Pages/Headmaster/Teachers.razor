@@ -1,0 +1,206 @@
+@page "/headmaster/teachers"
+@layout HeadmasterLayout
+@attribute [Authorize(Roles = "Admin,Headmaster,Officer")]
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject MainSchoolsManagementSystem.Data.ApplicationDbContext DbContext
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.ComponentModel.DataAnnotations
+@using MainSchoolsManagementSystem.Data
+
+<PageTitle>Manage Teachers</PageTitle>
+
+<div class="d-flex flex-column gap-4">
+    <!-- Header with Action -->
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Teachers Roster</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">View and search teachers in your school.</p>
+        </div>
+    </div>
+
+    <!-- Filters & Search -->
+    <div class="glass-panel" style="padding: 1.25rem;">
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <div style="flex: 1; position: relative;">
+                <input type="text" class="form-control-custom" style="width: 100%; padding-left: 2.5rem;" 
+                       placeholder="Search teachers by email..." 
+                       @bind-value="searchQuery" @bind-value:event="oninput" @onkeyup="FilterTeachers" />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Teachers Grid/Table -->
+    <div class="glass-panel" style="padding: 0;">
+        <div class="table-container">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th>Username / Email</th>
+                        <th>User ID</th>
+                        <th>School</th>
+                        <th>Status</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (filteredTeachers.Any())
+                    {
+                        foreach (var teacher in filteredTeachers)
+                        {
+                            <tr>
+                                <td>
+                                    <div style="display: flex; flex-direction: column;">
+                                        <span style="font-weight: 600; color: var(--text-primary);">@teacher.FullName</span>
+                                        <span style="font-size: 0.8rem; color: var(--text-secondary);">@teacher.Email</span>
+                                    </div>
+                                </td>
+                                <td style="font-family: monospace; font-size: 0.85rem; color: var(--text-secondary);">
+                                    @teacher.Id
+                                </td>
+                                <td>
+                                    @(teacher.School?.Name ?? "No School")
+                                </td>
+                                <td>
+                                    <span class="badge badge-present">Active</span>
+                                </td>
+                                <td style="text-align: right;">
+                                    <button class="btn-premium btn-secondary-custom" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" 
+                                            @onclick="() => ConfirmDelete(teacher)">
+                                        Remove
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                No teachers found.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- Delete Confirmation Modal -->
+@if (showDeleteModal && teacherToDelete != null)
+{
+    <div class="modal-backdrop-custom">
+        <div class="modal-content-custom" style="max-width: 400px;">
+            <div class="modal-header-custom">
+                <h3 style="font-size: 1.25rem; color: var(--danger);">Remove Teacher</h3>
+                <button style="background: transparent; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;" @onclick="CloseDeleteModal">×</button>
+            </div>
+            <div class="modal-body-custom">
+                <p style="font-size: 0.95rem; line-height: 1.5; color: var(--text-primary);">
+                    Are you sure you want to remove <strong>@teacherToDelete.UserName</strong> from the roster? This will permanently delete their account and associated records.
+                </p>
+            </div>
+            <div class="modal-footer-custom">
+                <button class="btn-premium btn-secondary-custom" @onclick="CloseDeleteModal">Cancel</button>
+                <button class="btn-premium" style="background: var(--danger);" @onclick="HandleDeleteTeacher">Remove Teacher</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private int? schoolId;
+    private List<ApplicationUser> allTeachers = new();
+    private List<ApplicationUser> filteredTeachers = new();
+    private string searchQuery = "";
+
+    private bool showDeleteModal = false;
+    private ApplicationUser? teacherToDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var appUser = await UserManager.GetUserAsync(user);
+            if (appUser != null && appUser.SchoolId.HasValue)
+            {
+                schoolId = appUser.SchoolId.Value;
+                await LoadTeachers();
+            }
+        }
+    }
+
+    private async Task LoadTeachers()
+    {
+        if (schoolId.HasValue)
+        {
+            // Fetch all users in "Teacher" role
+            var teachersInRole = await UserManager.GetUsersInRoleAsync("Teacher");
+            
+            // Filter by school and include school details
+            allTeachers = teachersInRole
+                .Where(t => t.SchoolId == schoolId.Value)
+                .ToList();
+                
+            // Fill School navigation property manually as GetUsersInRoleAsync doesn't include it
+            foreach (var t in allTeachers)
+            {
+                if (t.SchoolId.HasValue && t.School == null)
+                {
+                    t.School = await DbContext.Schools.FindAsync(t.SchoolId.Value);
+                }
+            }
+
+            FilterTeachers();
+        }
+    }
+
+    private void FilterTeachers()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery))
+        {
+            filteredTeachers = allTeachers.ToList();
+        }
+        else
+        {
+            filteredTeachers = allTeachers
+                .Where(t => (t.UserName?.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) == true) || 
+                            (t.Email?.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) == true))
+                .ToList();
+        }
+    }
+
+    private void ConfirmDelete(ApplicationUser teacher)
+    {
+        teacherToDelete = teacher;
+        showDeleteModal = true;
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        teacherToDelete = null;
+    }
+
+    private async Task HandleDeleteTeacher()
+    {
+        if (teacherToDelete != null)
+        {
+            var result = await UserManager.DeleteAsync(teacherToDelete);
+            if (result.Succeeded)
+            {
+                await LoadTeachers();
+            }
+            CloseDeleteModal();
+        }
+    }
+}

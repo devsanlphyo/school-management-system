@@ -1,0 +1,49 @@
+@page "/teacher/dashboard"
+@attribute [Authorize(Roles = "Teacher")]
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+
+<PageTitle>Teacher Dashboard</PageTitle>
+
+<div class="login-container">
+    <div class="login-card" style="max-width: 500px; text-align: center; display: flex; flex-direction: column; gap: 1.5rem;">
+        <div>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); margin-bottom: 0.5rem;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+            <h2 style="font-size: 1.5rem; margin-bottom: 0.25rem;">Teacher Portal</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">Welcome, @userDisplayName</p>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: var(--radius-md); text-align: left; font-size: 0.9rem; line-height: 1.6;">
+            <p style="color: var(--text-primary); font-weight: 600; margin-bottom: 0.5rem;">Status: Authorized</p>
+            <p style="color: var(--text-secondary);">The teacher dashboard interface is currently under construction. Please contact your school administrator if you need immediate assistance.</p>
+        </div>
+
+        <div style="display: flex; gap: 1rem; justify-content: center;">
+            <form action="/Account/Logout" method="post">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="" />
+                <button type="submit" class="btn-premium btn-secondary-custom">
+                    Logout
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string userDisplayName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var appUser = await UserManager.GetUserAsync(user);
+            userDisplayName = appUser?.FullName ?? user.Identity.Name ?? "Teacher";
+        }
+    }
+}

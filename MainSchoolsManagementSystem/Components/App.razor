@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -21,7 +21,7 @@
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 
-    private IComponentRenderMode? RenderModeForPage => HttpContext.Request.Path.StartsWithSegments("/Account")
+    private IComponentRenderMode? RenderModeForPage => HttpContext.Request.Path == "/" || HttpContext.Request.Path.StartsWithSegments("/Account")
         ? null
         : InteractiveServer;
 }

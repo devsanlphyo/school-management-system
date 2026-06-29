@@ -1,4 +1,5 @@
-﻿@page "/Account/Login"
+@page "/"
+@page "/Account/Login"
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authentication
@@ -10,57 +11,41 @@
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Log in</PageTitle>
+<div class="login-container">
+    <div class="login-card">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); margin-bottom: 0.75rem;"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+            <h2 style="font-size: 1.50rem; font-weight: 900; color: var(--text-primary); font-family: 'Outfit', sans-serif;">HelloTwo</h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">Sign in to your account</p>
+        </div>
 
-<h1>Log in</h1>
-<div class="row">
-    <div class="col-md-4">
-        <section>
-            <StatusMessage Message="@errorMessage" />
-            <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" FormName="login">
-                <DataAnnotationsValidator />
-                <h2>Use a local account to log in.</h2>
-                <hr />
-                <ValidationSummary class="text-danger" role="alert" />
-                <div class="form-floating mb-3">
-                    <InputText @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
-                    <label for="email" class="form-label">Email</label>
-                    <ValidationMessage For="() => Input.Email" class="text-danger" />
-                </div>
-                <div class="form-floating mb-3">
-                    <InputText type="password" @bind-Value="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password" />
-                    <label for="password" class="form-label">Password</label>
-                    <ValidationMessage For="() => Input.Password" class="text-danger" />
-                </div>
-                <div class="checkbox mb-3">
-                    <label class="form-label">
-                        <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input" />
-                        Remember me
-                    </label>
-                </div>
-                <div>
-                    <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
-                </div>
-                <div>
-                    <p>
-                        <a href="Account/ForgotPassword">Forgot your password?</a>
-                    </p>
-                    <p>
-                        <a href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Register as a new user</a>
-                    </p>
-                    <p>
-                        <a href="Account/ResendEmailConfirmation">Resend email confirmation</a>
-                    </p>
-                </div>
-            </EditForm>
-        </section>
-    </div>
-    <div class="col-md-6 col-md-offset-2">
-        <section>
-            <h3>Use another service to log in.</h3>
-            <hr />
-            <ExternalLoginPicker />
-        </section>
+        <StatusMessage Message="@errorMessage" />
+
+        <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" FormName="login">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="validation-message" role="alert" style="margin-bottom: 1.25rem; list-style: none; padding: 0;" />
+
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label">Email</label>
+                <InputText @bind-Value="Input.Email" class="form-control-custom" autocomplete="username" placeholder="name@example.com" />
+                <ValidationMessage For="() => Input.Email" class="validation-message" />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label">Password</label>
+                <InputText type="password" @bind-Value="Input.Password" class="form-control-custom" autocomplete="current-password" placeholder="••••••••" />
+                <ValidationMessage For="() => Input.Password" class="validation-message" />
+            </div>
+
+            <div style="display: flex; justify-content: flex-start; align-items: center; margin-bottom: 1.5rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: var(--text-secondary); cursor: pointer;">
+                    <InputCheckbox @bind-Value="Input.RememberMe" style="accent-color: var(--primary); width: 14px; height: 14px;" />
+                    Remember me
+                </label>
+            </div>
+
+            <button type="submit" class="btn-premium" style="width: 100%; justify-content: center; padding: 0.75rem;">Sign In</button>
+        </EditForm>
     </div>
 </div>
 
@@ -78,6 +63,11 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (HttpContext.User.Identity?.IsAuthenticated == true)
+        {
+            RedirectManager.RedirectTo("home");
+        }
+
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
             // Clear the existing external cookie to ensure a clean login process
@@ -93,7 +83,8 @@
         if (result.Succeeded)
         {
             Logger.LogInformation("User logged in.");
-            RedirectManager.RedirectTo(ReturnUrl);
+            var targetUrl = string.IsNullOrEmpty(ReturnUrl) || ReturnUrl == "/" ? "home" : ReturnUrl;
+            RedirectManager.RedirectTo(targetUrl);
         }
         else if (result.RequiresTwoFactor)
         {

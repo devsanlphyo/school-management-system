@@ -7,7 +7,7 @@ namespace MainSchoolsManagementSystem.Data
     {
         public DbSet<School> Schools { get; set; }
         public DbSet<LessonPlan> LessonPlans { get; set; }
-        public DbSet<LessonPlanSettings> LessonPlanSettings { get; set; }
+        public DbSet<SystemSetting> SystemSettings { get; set; }
         public DbSet<Attendance> Attendances { get; set; }
         public DbSet<LeaveRequest> LeaveRequests { get; set; }
         public DbSet<Department> Departments { get; set; }

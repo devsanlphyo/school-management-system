@@ -1,0 +1,307 @@
+@page "/admin/schools"
+@layout AdminLayout
+@attribute [Authorize(Roles = "Admin")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+
+<PageTitle>Manage Schools</PageTitle>
+
+<div class="d-flex flex-column" style="gap: 2rem;">
+    <!-- Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h2 style="font-size: 1.85rem; font-weight: 900; color: var(--text-primary); margin-bottom: 0.4rem;">Schools</h2>
+            <p style="color: var(--text-muted); font-size: 0.92rem;">Register and manage school entities in the system.</p>
+        </div>
+        <button class="btn-premium" @onclick="OpenAddModal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Add School
+        </button>
+    </div>
+
+    <!-- Filter/Search Bar -->
+    <div class="glass-panel" style="padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+        <div style="flex: 1; position: relative;">
+            <input type="text" class="form-control-custom" placeholder="Search schools by name..." @bind-value="searchQuery" @bind-value:event="oninput" style="padding-left: 2.5rem;" />
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </div>
+    </div>
+
+    <!-- Table List -->
+    <div class="glass-panel" style="padding: 0; overflow: hidden;">
+        <div class="table-container">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>School Name</th>
+                        <th>Staff Count</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (filteredSchools.Any())
+                    {
+                        foreach (var school in filteredSchools)
+                        {
+                            <tr>
+                                <td style="font-weight: 600; color: var(--text-muted); width: 80px;">#@school.Id</td>
+                                <td style="font-weight: 700; color: var(--text-primary);">@school.Name</td>
+                                <td>
+                                    <span class="badge badge-indigo">
+                                        @school.Users.Count Members
+                                    </span>
+                                </td>
+                                <td style="text-align: right;">
+                                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                                        <a class="btn-premium btn-secondary-custom" style="padding: 0.4rem; display: inline-flex; align-items: center; justify-content: center; text-decoration: none;" title="Manage Departments & Classes" href="/admin/schools/@school.Id">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                        </a>
+                                        <button class="btn-premium btn-secondary-custom" style="padding: 0.4rem;" title="Edit School" @onclick="() => OpenEditModal(school)">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                        </button>
+                                        <button class="btn-premium btn-secondary-custom" style="padding: 0.4rem; color: var(--danger); border-color: rgba(244,63,94,0.15);" title="Delete School" @onclick="() => OpenDeleteModal(school)">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="4" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                No schools found matching your search.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add School -->
+@if (showAddModal)
+{
+    <div class="modal-backdrop-custom">
+        <div class="modal-content-custom">
+            <div class="modal-header-custom">
+                <h3 style="font-size: 1.15rem; font-weight: 800;">Register New School</h3>
+                <button class="btn-premium btn-secondary-custom" style="padding: 0.35rem;" @onclick="CloseModals">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body-custom">
+                <div class="form-group">
+                    <label class="form-label">School Name</label>
+                    <input type="text" class="form-control-custom" placeholder="e.g., Lincoln High School" @bind="newSchoolName" />
+                    @if (!string.IsNullOrEmpty(validationError))
+                    {
+                        <span class="validation-message">@validationError</span>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer-custom">
+                <button class="btn-premium btn-secondary-custom" @onclick="CloseModals">Cancel</button>
+                <button class="btn-premium" @onclick="AddSchool">Register</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: Edit School -->
+@if (showEditModal && editingSchool != null)
+{
+    <div class="modal-backdrop-custom">
+        <div class="modal-content-custom">
+            <div class="modal-header-custom">
+                <h3 style="font-size: 1.15rem; font-weight: 800;">Edit School Details</h3>
+                <button class="btn-premium btn-secondary-custom" style="padding: 0.35rem;" @onclick="CloseModals">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body-custom">
+                <div class="form-group">
+                    <label class="form-label">School Name</label>
+                    <input type="text" class="form-control-custom" @bind="editingSchool.Name" />
+                    @if (!string.IsNullOrEmpty(validationError))
+                    {
+                        <span class="validation-message">@validationError</span>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer-custom">
+                <button class="btn-premium btn-secondary-custom" @onclick="CloseModals">Cancel</button>
+                <button class="btn-premium" @onclick="SaveSchool">Save Changes</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: Delete School -->
+@if (showDeleteModal && deletingSchool != null)
+{
+    <div class="modal-backdrop-custom">
+        <div class="modal-content-custom" style="max-width: 420px;">
+            <div class="modal-header-custom" style="border-bottom: none; padding-bottom: 0;">
+                <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--danger);">Delete School</h3>
+                <button class="btn-premium btn-secondary-custom" style="padding: 0.35rem;" @onclick="CloseModals">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body-custom" style="text-align: center; padding: 1.5rem 2rem;">
+                <div style="color: var(--danger); margin-bottom: 1rem;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                </div>
+                <h4 style="margin-bottom: 0.5rem; font-weight: 700;">Are you sure?</h4>
+                <p style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.5;">
+                    This action will permanently delete <strong>@deletingSchool.Name</strong>. All linked teachers and administrators will lose their school association.
+                </p>
+            </div>
+            <div class="modal-footer-custom" style="border-top: none; padding-top: 0;">
+                <button class="btn-premium btn-secondary-custom" style="flex: 1;" @onclick="CloseModals">Cancel</button>
+                <button class="btn-premium" style="background: var(--danger); color: white; flex: 1; box-shadow: none;" @onclick="DeleteSchool">Delete</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<School> schools = new();
+    private string searchQuery = "";
+
+    private bool showAddModal = false;
+    private string newSchoolName = "";
+
+    private bool showEditModal = false;
+    private School? editingSchool;
+
+    private bool showDeleteModal = false;
+    private School? deletingSchool;
+
+    private string validationError = "";
+
+    private IEnumerable<School> filteredSchools =>
+        string.IsNullOrWhiteSpace(searchQuery)
+            ? schools
+            : schools.Where(s => s.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSchools();
+    }
+
+    private async Task LoadSchools()
+    {
+        using var context = await DbFactory.CreateDbContextAsync();
+        schools = await context.Schools.Include(s => s.Users).ToListAsync();
+    }
+
+    private void OpenAddModal()
+    {
+        newSchoolName = "";
+        validationError = "";
+        showAddModal = true;
+    }
+
+    private void OpenEditModal(School school)
+    {
+        editingSchool = new School { Id = school.Id, Name = school.Name };
+        validationError = "";
+        showEditModal = true;
+    }
+
+    private void OpenDeleteModal(School school)
+    {
+        deletingSchool = school;
+        showDeleteModal = true;
+    }
+
+    private void CloseModals()
+    {
+        showAddModal = false;
+        showEditModal = false;
+        showDeleteModal = false;
+        editingSchool = null;
+        deletingSchool = null;
+        validationError = "";
+    }
+
+    private async Task AddSchool()
+    {
+        if (string.IsNullOrWhiteSpace(newSchoolName))
+        {
+            validationError = "School name cannot be empty.";
+            return;
+        }
+
+        using var context = await DbFactory.CreateDbContextAsync();
+        
+        // Check duplicate
+        if (await context.Schools.AnyAsync(s => s.Name.ToLower() == newSchoolName.Trim().ToLower()))
+        {
+            validationError = "A school with this name already exists.";
+            return;
+        }
+
+        var school = new School { Name = newSchoolName.Trim() };
+        context.Schools.Add(school);
+        await context.SaveChangesAsync();
+
+        CloseModals();
+        await LoadSchools();
+    }
+
+    private async Task SaveSchool()
+    {
+        if (editingSchool == null) return;
+
+        if (string.IsNullOrWhiteSpace(editingSchool.Name))
+        {
+            validationError = "School name cannot be empty.";
+            return;
+        }
+
+        using var context = await DbFactory.CreateDbContextAsync();
+
+        // Check duplicate
+        if (await context.Schools.AnyAsync(s => s.Id != editingSchool.Id && s.Name.ToLower() == editingSchool.Name.Trim().ToLower()))
+        {
+            validationError = "A school with this name already exists.";
+            return;
+        }
+
+        var school = await context.Schools.FindAsync(editingSchool.Id);
+        if (school != null)
+        {
+            school.Name = editingSchool.Name.Trim();
+            await context.SaveChangesAsync();
+        }
+
+        CloseModals();
+        await LoadSchools();
+    }
+
+    private async Task DeleteSchool()
+    {
+        if (deletingSchool == null) return;
+
+        using var context = await DbFactory.CreateDbContextAsync();
+        var school = await context.Schools.Include(s => s.Users).FirstOrDefaultAsync(s => s.Id == deletingSchool.Id);
+        if (school != null)
+        {
+            // Nullify SchoolId for all users in this school
+            foreach (var user in school.Users)
+            {
+                user.SchoolId = null;
+            }
+            
+            context.Schools.Remove(school);
+            await context.SaveChangesAsync();
+        }
+
+        CloseModals();
+        await LoadSchools();
+    }
+}

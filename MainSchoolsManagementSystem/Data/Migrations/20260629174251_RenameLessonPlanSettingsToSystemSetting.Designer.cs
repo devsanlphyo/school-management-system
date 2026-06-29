@@ -4,6 +4,7 @@ using MainSchoolsManagementSystem.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MainSchoolsManagementSystem.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260629174251_RenameLessonPlanSettingsToSystemSetting")]
+    partial class RenameLessonPlanSettingsToSystemSetting
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -30,9 +33,6 @@ namespace MainSchoolsManagementSystem.Migrations
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("DepartmentId")
-                        .HasColumnType("int");
 
                     b.Property<string>("Email")
                         .HasMaxLength(256)
@@ -64,8 +64,6 @@ namespace MainSchoolsManagementSystem.Migrations
                         .HasColumnType("nvarchar(256)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("DepartmentId");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -275,9 +273,6 @@ namespace MainSchoolsManagementSystem.Migrations
                     b.Property<TimeSpan>("DailyDeadline")
                         .HasColumnType("time");
 
-                    b.Property<bool>("MaintenanceMode")
-                        .HasColumnType("bit");
-
                     b.HasKey("Id");
 
                     b.ToTable("SystemSettings");
@@ -447,16 +442,10 @@ namespace MainSchoolsManagementSystem.Migrations
 
             modelBuilder.Entity("MainSchoolsManagementSystem.Data.ApplicationUser", b =>
                 {
-                    b.HasOne("MainSchoolsManagementSystem.Data.Department", "Department")
-                        .WithMany()
-                        .HasForeignKey("DepartmentId");
-
                     b.HasOne("MainSchoolsManagementSystem.Data.School", "School")
                         .WithMany("Users")
                         .HasForeignKey("SchoolId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Department");
 
                     b.Navigation("School");
                 });
