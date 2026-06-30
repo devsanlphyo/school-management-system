@@ -17,8 +17,17 @@ namespace MainSchoolsManagementSystem.Data
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-            // Ensure database is migrated
-            await context.Database.MigrateAsync();
+            // Ensure database is created/migrated
+            // SQLite: Use EnsureCreated (migrations contain SQL Server-specific syntax)
+            // SQL Server: Use MigrateAsync to apply migrations
+            if (context.Database.IsSqlite())
+            {
+                await context.Database.EnsureCreatedAsync();
+            }
+            else
+            {
+                await context.Database.MigrateAsync();
+            }
 
             // 1. Seed Roles
             string[] roles = { "Admin", "Director", "Headmaster", "Officer", "Teacher", "Assistant" };
@@ -113,7 +122,7 @@ namespace MainSchoolsManagementSystem.Data
 
                         context.Attendances.Add(new Attendance
                         {
-                            TeacherId = teacher.Id,
+                            UserId = teacher.Id,
                             Date = date,
                             CheckedInAt = checkIn,
                             Status = status
@@ -126,7 +135,7 @@ namespace MainSchoolsManagementSystem.Data
                 {
                     context.LeaveRequests.Add(new LeaveRequest
                     {
-                        TeacherId = schoolTeachers[0].Id,
+                        UserId = schoolTeachers[0].Id,
                         TargetDate = today.AddDays(1),
                         SubmittedAt = today.AddDays(-1),
                         Status = LeaveStatus.Pending,
@@ -135,7 +144,7 @@ namespace MainSchoolsManagementSystem.Data
 
                     context.LeaveRequests.Add(new LeaveRequest
                     {
-                        TeacherId = schoolTeachers[1].Id,
+                        UserId = schoolTeachers[1].Id,
                         TargetDate = today.AddDays(3),
                         SubmittedAt = today.AddDays(-2),
                         Status = LeaveStatus.Pending,
@@ -144,7 +153,7 @@ namespace MainSchoolsManagementSystem.Data
 
                     context.LeaveRequests.Add(new LeaveRequest
                     {
-                        TeacherId = schoolTeachers[0].Id,
+                        UserId = schoolTeachers[0].Id,
                         TargetDate = today.AddDays(-4),
                         SubmittedAt = today.AddDays(-6),
                         Status = LeaveStatus.Approved,

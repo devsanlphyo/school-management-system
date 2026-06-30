@@ -47,15 +47,15 @@ namespace MainSchoolsManagementSystem.Data
                 .OnDelete(DeleteBehavior.Cascade);
 
             builder.Entity<Attendance>()
-                .HasOne(a => a.Teacher)
+                .HasOne(a => a.User)
                 .WithMany()
-                .HasForeignKey(a => a.TeacherId)
+                .HasForeignKey(a => a.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             builder.Entity<LeaveRequest>()
-                .HasOne(lr => lr.Teacher)
+                .HasOne(lr => lr.User)
                 .WithMany()
-                .HasForeignKey(lr => lr.TeacherId)
+                .HasForeignKey(lr => lr.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             builder.Entity<Department>()

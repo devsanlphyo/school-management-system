@@ -12,8 +12,8 @@ namespace MainSchoolsManagementSystem.Data
     public class Attendance
     {
         public int Id { get; set; }
-        public string TeacherId { get; set; } = string.Empty;
-        public ApplicationUser? Teacher { get; set; }
+        public string UserId { get; set; } = string.Empty;
+        public ApplicationUser? User { get; set; }
         public DateTime Date { get; set; }
         public DateTime? CheckedInAt { get; set; }
         public AttendanceStatus Status { get; set; } = AttendanceStatus.Absent;

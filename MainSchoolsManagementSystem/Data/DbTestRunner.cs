@@ -95,7 +95,7 @@ namespace MainSchoolsManagementSystem.Data
                 // 8. Create an Attendance Log
                 var attendance = new Attendance
                 {
-                    TeacherId = teacher.Id,
+                    UserId = teacher.Id,
                     Date = DateTime.Today,
                     CheckedInAt = DateTime.UtcNow,
                     Status = AttendanceStatus.Present
@@ -105,7 +105,7 @@ namespace MainSchoolsManagementSystem.Data
                 // 9. Create a Leave Request
                 var leaveRequest = new LeaveRequest
                 {
-                    TeacherId = teacher.Id,
+                    UserId = teacher.Id,
                     TargetDate = DateTime.Today.AddDays(2),
                     SubmittedAt = DateTime.UtcNow,
                     Status = LeaveStatus.Pending,

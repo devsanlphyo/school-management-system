@@ -29,9 +29,20 @@ builder.Services.AddAuthentication(options =>
     })
     .AddIdentityCookies();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+var databaseProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "Sqlite";
+
+if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+        options.UseSqlServer(connectionString));
+}
+else
+{
+    var sqliteConnectionString = builder.Configuration.GetConnectionString("SqliteConnection") ?? "Data Source=SchoolsManagement.db";
+    builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+        options.UseSqlite(sqliteConnectionString));
+}
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = false)

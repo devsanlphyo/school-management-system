@@ -12,8 +12,8 @@ namespace MainSchoolsManagementSystem.Data
     public class LeaveRequest
     {
         public int Id { get; set; }
-        public string TeacherId { get; set; } = string.Empty;
-        public ApplicationUser? Teacher { get; set; }
+        public string UserId { get; set; } = string.Empty;
+        public ApplicationUser? User { get; set; }
         public DateTime TargetDate { get; set; }
         public DateTime SubmittedAt { get; set; }
         public LeaveStatus Status { get; set; } = LeaveStatus.Pending;

@@ -186,7 +186,6 @@
 }
 
 @code {
-    private int? schoolId;
     private string activeTab = "pending";
 
     private List<LessonPlan> pendingPlans = new();
@@ -204,22 +203,14 @@
 
         if (user.Identity?.IsAuthenticated == true)
         {
-            var appUser = await UserManager.GetUserAsync(user);
-            if (appUser != null && appUser.SchoolId.HasValue)
-            {
-                schoolId = appUser.SchoolId.Value;
-                await LoadLessonPlans();
-            }
+            await LoadLessonPlans();
         }
     }
 
     private async Task LoadLessonPlans()
     {
-        if (!schoolId.HasValue) return;
-
         var allPlans = await DbContext.LessonPlans
             .Include(lp => lp.Teacher)
-            .Where(lp => lp.Teacher.SchoolId == schoolId.Value)
             .OrderByDescending(lp => lp.UploadedAt)
             .ToListAsync();
 

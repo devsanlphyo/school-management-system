@@ -14,8 +14,15 @@ namespace MainSchoolsManagementSystem.Data
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager)
         {
-            // Ensure database is migrated
-            await context.Database.MigrateAsync();
+            // Ensure database is created/migrated
+            if (context.Database.IsSqlite())
+            {
+                await context.Database.EnsureCreatedAsync();
+            }
+            else
+            {
+                await context.Database.MigrateAsync();
+            }
 
             // 1. Seed Roles
             string[] roleNames = { "Admin", "Teacher" };
@@ -138,7 +145,7 @@ namespace MainSchoolsManagementSystem.Data
 
                         context.Attendances.Add(new Attendance
                         {
-                            TeacherId = teacher.Id,
+                            UserId = teacher.Id,
                             Date = date,
                             CheckedInAt = checkIn,
                             Status = status
@@ -149,7 +156,7 @@ namespace MainSchoolsManagementSystem.Data
                 // Seed some Pending and Approved Leave Requests
                 context.LeaveRequests.Add(new LeaveRequest
                 {
-                    TeacherId = seededTeachers[0].Id,
+                    UserId = seededTeachers[0].Id,
                     TargetDate = today.AddDays(2),
                     SubmittedAt = today.AddDays(-1),
                     Status = LeaveStatus.Pending,
@@ -158,7 +165,7 @@ namespace MainSchoolsManagementSystem.Data
 
                 context.LeaveRequests.Add(new LeaveRequest
                 {
-                    TeacherId = seededTeachers[1].Id,
+                    UserId = seededTeachers[1].Id,
                     TargetDate = today.AddDays(5),
                     SubmittedAt = today.AddDays(-2),
                     Status = LeaveStatus.Pending,
@@ -167,7 +174,7 @@ namespace MainSchoolsManagementSystem.Data
 
                 context.LeaveRequests.Add(new LeaveRequest
                 {
-                    TeacherId = seededTeachers[2].Id,
+                    UserId = seededTeachers[2].Id,
                     TargetDate = today.AddDays(-3),
                     SubmittedAt = today.AddDays(-5),
                     Status = LeaveStatus.Approved,

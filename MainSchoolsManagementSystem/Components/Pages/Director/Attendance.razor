@@ -1,6 +1,6 @@
-@page "/headmaster/attendance"
-@layout HeadmasterLayout
-@attribute [Authorize(Roles = "Admin,Headmaster,Officer")]
+@page "/director/attendance"
+@layout MainSchoolsManagementSystem.Components.Layout.DirectorLayout
+@attribute [Authorize(Roles = "Director")]
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @inject MainSchoolsManagementSystem.Data.ApplicationDbContext DbContext
@@ -10,14 +10,14 @@
 @using System
 @using MainSchoolsManagementSystem.Data
 
-<PageTitle>Staff Attendance</PageTitle>
+<PageTitle>Global Teacher Attendance - Director</PageTitle>
 
 <div class="d-flex flex-column gap-4">
     <!-- Header -->
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
         <div>
-            <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Daily Attendance</h2>
-            <p style="color: var(--text-secondary); font-size: 0.9rem;">Track and manage staff attendance records.</p>
+            <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Global Teacher Attendance</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">View attendance records for all teachers across all schools.</p>
         </div>
         
         <!-- Date Selector -->
@@ -50,24 +50,20 @@
             <table class="premium-table">
                 <thead>
                     <tr>
-                        <th>Staff Member</th>
-                        <th>Role</th>
+                        <th>Teacher</th>
                         <th>Status</th>
                         <th>Check-in Time</th>
-
                     </tr>
                 </thead>
                 <tbody>
-                    @if (staffAttendance.Any())
+                    @if (teachersAttendance.Any())
                     {
-                        foreach (var record in staffAttendance)
+                        foreach (var record in teachersAttendance)
                         {
                             <tr>
                                 <td>
-                                    <div style="font-weight: 600; color: var(--text-primary);">@record.User.FullName</div>
-                                </td>
-                                <td>
-                                    <span class="badge" style="background-color: var(--border-color); color: var(--text-secondary);">@record.Role</span>
+                                    <div style="font-weight: 600; color: var(--text-primary);">@record.Teacher.FullName</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">School ID: @(record.Teacher.SchoolId?.ToString() ?? "N/A")</div>
                                 </td>
                                 <td>
                                     @if (record.Attendance == null)
@@ -93,15 +89,14 @@
                                 <td>
                                     @(record.Attendance?.CheckedInAt?.ToLocalTime().ToString("hh:mm tt") ?? "—")
                                 </td>
-
                             </tr>
                         }
                     }
                     else
                     {
                         <tr>
-                            <td colspan="4" style="text-align: center; padding: 3rem; color: var(--text-muted);">
-                                No staff registered in this school.
+                            <td colspan="3" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                No teachers found.
                             </td>
                         </tr>
                     }
@@ -112,9 +107,8 @@
 </div>
 
 @code {
-    private int? schoolId;
     private DateTime selectedDate = DateTime.Today;
-    private List<StaffAttendanceRecord> staffAttendance = new();
+    private List<TeacherAttendanceRecord> teachersAttendance = new();
 
     private int presentCount = 0;
     private int lateCount = 0;
@@ -127,12 +121,7 @@
 
         if (user.Identity?.IsAuthenticated == true)
         {
-            var appUser = await UserManager.GetUserAsync(user);
-            if (appUser != null && appUser.SchoolId.HasValue)
-            {
-                schoolId = appUser.SchoolId.Value;
-                await LoadAttendanceData();
-            }
+            await LoadAttendanceData();
         }
     }
 
@@ -147,54 +136,36 @@
 
     private async Task LoadAttendanceData()
     {
-        if (!schoolId.HasValue) return;
+        // Fetch all teachers in system
+        var allTeachersInRole = await UserManager.GetUsersInRoleAsync("Teacher");
+        var allTeachers = allTeachersInRole.ToList();
 
-        // Fetch staff in school
-        var teachers = await UserManager.GetUsersInRoleAsync("Teacher");
-        var officers = await UserManager.GetUsersInRoleAsync("Officer");
-        var assistants = await UserManager.GetUsersInRoleAsync("Assistant");
-
-        var records = new List<StaffAttendanceRecord>();
-        
-        foreach (var u in teachers.Where(t => t.SchoolId == schoolId.Value)) 
-            records.Add(new StaffAttendanceRecord { User = u, Role = "Teacher" });
-            
-        foreach (var u in officers.Where(t => t.SchoolId == schoolId.Value)) 
-            records.Add(new StaffAttendanceRecord { User = u, Role = "Officer" });
-            
-        foreach (var u in assistants.Where(t => t.SchoolId == schoolId.Value)) 
-            records.Add(new StaffAttendanceRecord { User = u, Role = "Assistant" });
-
-        // Fetch attendance records for the selected date
+        // Fetch attendance records for the selected date globally
         var attendanceRecords = await DbContext.Attendances
-            .Where(a => a.User.SchoolId == schoolId.Value && a.Date.Date == selectedDate.Date)
+            .Where(a => a.Date.Date == selectedDate.Date)
             .ToListAsync();
 
-        foreach (var record in records)
+        teachersAttendance = allTeachers.Select(teacher => new TeacherAttendanceRecord
         {
-            record.Attendance = attendanceRecords.FirstOrDefault(a => a.UserId == record.User.Id);
-        }
-        
-        staffAttendance = records;
+            Teacher = teacher,
+            Attendance = attendanceRecords.FirstOrDefault(a => a.UserId == teacher.Id)
+        }).OrderBy(r => r.Teacher.SchoolId).ThenBy(r => r.Teacher.FullName).ToList();
 
         CalculateStats();
     }
 
     private void CalculateStats()
     {
-        presentCount = staffAttendance.Count(r => r.Attendance?.Status == AttendanceStatus.Present);
-        lateCount = staffAttendance.Count(r => r.Attendance?.Status == AttendanceStatus.Late);
+        presentCount = teachersAttendance.Count(r => r.Attendance?.Status == AttendanceStatus.Present);
+        lateCount = teachersAttendance.Count(r => r.Attendance?.Status == AttendanceStatus.Late);
         
         // Count as absent if status is Absent or if there is no attendance record at all
-        absentCount = staffAttendance.Count(r => r.Attendance == null || r.Attendance.Status == AttendanceStatus.Absent);
+        absentCount = teachersAttendance.Count(r => r.Attendance == null || r.Attendance.Status == AttendanceStatus.Absent);
     }
 
-
-
-    public class StaffAttendanceRecord
+    public class TeacherAttendanceRecord
     {
-        public ApplicationUser User { get; set; } = null!;
-        public string Role { get; set; } = "";
+        public ApplicationUser Teacher { get; set; } = null!;
         public MainSchoolsManagementSystem.Data.Attendance? Attendance { get; set; }
     }
 }

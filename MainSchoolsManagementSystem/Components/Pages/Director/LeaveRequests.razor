@@ -1,6 +1,6 @@
-@page "/headmaster/leave-requests"
-@layout HeadmasterLayout
-@attribute [Authorize(Roles = "Admin,Headmaster,Officer")]
+@page "/director/leave-requests"
+@layout MainSchoolsManagementSystem.Components.Layout.DirectorLayout
+@attribute [Authorize(Roles = "Director")]
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @inject MainSchoolsManagementSystem.Data.ApplicationDbContext DbContext
@@ -9,13 +9,13 @@
 @using Microsoft.EntityFrameworkCore
 @using MainSchoolsManagementSystem.Data
 
-<PageTitle>Leave Requests</PageTitle>
+<PageTitle>Global Leave Requests - Director</PageTitle>
 
 <div class="d-flex flex-column gap-4">
     <!-- Header -->
     <div>
-        <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Leave Requests</h2>
-        <p style="color: var(--text-secondary); font-size: 0.9rem;">Review, approve, and reject teacher leave submissions.</p>
+        <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Global Leave Requests</h2>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">View teacher leave submissions across all schools.</p>
     </div>
 
     <!-- Tabbed Navigation -->
@@ -42,6 +42,7 @@
                         <div>
                             <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary);">
                                 @request.User?.FullName
+                                <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-secondary); margin-left: 0.5rem;">(School ID: @(request.User?.SchoolId?.ToString() ?? "N/A"))</span>
                             </div>
                             <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
                                 Submitted on: @request.SubmittedAt.ToLocalTime().ToString("g")
@@ -60,32 +61,20 @@
                         @request.Reason
                     </div>
 
-                    @if (request.Status == LeaveStatus.Pending)
-                    {
-                        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                            <button class="btn-premium btn-secondary-custom" style="border-color: var(--danger-border); color: #f87171;" 
-                                    @onclick="() => UpdateRequestStatus(request.Id, LeaveStatus.Rejected)">
-                                Reject Request
-                            </button>
-                            <button class="btn-premium" style="background: var(--success);" 
-                                    @onclick="() => UpdateRequestStatus(request.Id, LeaveStatus.Approved)">
-                                Approve Request
-                            </button>
-                        </div>
-                    }
-                    else
-                    {
-                        <div style="display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
-                            @if (request.Status == LeaveStatus.Approved)
-                            {
-                                <span class="badge badge-present" style="padding: 0.4rem 1rem;">Approved</span>
-                            }
-                            else
-                            {
-                                <span class="badge badge-absent" style="padding: 0.4rem 1rem;">Rejected</span>
-                            }
-                        </div>
-                    }
+                    <div style="display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                        @if (request.Status == LeaveStatus.Pending)
+                        {
+                            <span class="badge badge-pending" style="padding: 0.4rem 1rem;">Pending Headmaster Review</span>
+                        }
+                        else if (request.Status == LeaveStatus.Approved)
+                        {
+                            <span class="badge badge-present" style="padding: 0.4rem 1rem;">Approved</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-absent" style="padding: 0.4rem 1rem;">Rejected</span>
+                        }
+                    </div>
                 </div>
             }
         }
@@ -100,7 +89,6 @@
 </div>
 
 @code {
-    private int? schoolId;
     private string activeTab = "pending";
 
     private List<LeaveRequest> pendingRequests = new();
@@ -114,22 +102,14 @@
 
         if (user.Identity?.IsAuthenticated == true)
         {
-            var appUser = await UserManager.GetUserAsync(user);
-            if (appUser != null && appUser.SchoolId.HasValue)
-            {
-                schoolId = appUser.SchoolId.Value;
-                await LoadLeaveRequests();
-            }
+            await LoadLeaveRequests();
         }
     }
 
     private async Task LoadLeaveRequests()
     {
-        if (!schoolId.HasValue) return;
-
         var allRequests = await DbContext.LeaveRequests
             .Include(lr => lr.User)
-            .Where(lr => lr.User.SchoolId == schoolId.Value)
             .OrderByDescending(lr => lr.SubmittedAt)
             .ToListAsync();
 
@@ -152,18 +132,5 @@
             "rejected" => rejectedRequests,
             _ => pendingRequests
         };
-    }
-
-    private async Task UpdateRequestStatus(int requestId, LeaveStatus status)
-    {
-        var request = await DbContext.LeaveRequests.FindAsync(requestId);
-        if (request != null)
-        {
-            request.Status = status;
-            DbContext.LeaveRequests.Update(request);
-            await DbContext.SaveChangesAsync();
-            await LoadLeaveRequests();
-            StateHasChanged();
-        }
     }
 }
