@@ -1,0 +1,100 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+
+<div class='admin-layout'>
+    <div class='sidebar-overlay @(isSidebarOpen ? "show" : "")' @onclick='ToggleSidebar'></div>
+    <aside class='admin-sidebar @(isSidebarOpen ? "open" : "")'>
+        <div class='sidebar-header'>
+            <span class='brand-title'>HelloTwo Teacher</span>
+        </div>
+        <nav class='sidebar-nav'>            <NavLink class='nav-item' href='teacher/feed' @onclick='CloseSidebar'>
+                <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='9'></rect><rect x='14' y='3' width='7' height='5'></rect><rect x='14' y='12' width='7' height='9'></rect><rect x='3' y='16' width='7' height='5'></rect></svg>
+                Feed
+            </NavLink>            <NavLink class='nav-item' href='teacher/lessonplans' @onclick='CloseSidebar'>
+                <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='9'></rect><rect x='14' y='3' width='7' height='5'></rect><rect x='14' y='12' width='7' height='9'></rect><rect x='3' y='16' width='7' height='5'></rect></svg>
+                LessonPlans
+            </NavLink>            <NavLink class='nav-item' href='teacher/attendance' @onclick='CloseSidebar'>
+                <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='9'></rect><rect x='14' y='3' width='7' height='5'></rect><rect x='14' y='12' width='7' height='9'></rect><rect x='3' y='16' width='7' height='5'></rect></svg>
+                Attendance
+            </NavLink>            <NavLink class='nav-item' href='teacher/profile' @onclick='CloseSidebar'>
+                <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='9'></rect><rect x='14' y='3' width='7' height='5'></rect><rect x='14' y='12' width='7' height='9'></rect><rect x='3' y='16' width='7' height='5'></rect></svg>
+                Profile
+            </NavLink>            <NavLink class='nav-item' href='teacher/settings' @onclick='CloseSidebar'>
+                <svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='9'></rect><rect x='14' y='3' width='7' height='5'></rect><rect x='14' y='12' width='7' height='9'></rect><rect x='3' y='16' width='7' height='5'></rect></svg>
+                Settings
+            </NavLink>        </nav>
+        <div class='sidebar-footer'>
+            <form action='/Account/Logout' method='post'>
+                <AntiforgeryToken />
+                <input type='hidden' name='ReturnUrl' value='' />
+                <button type='submit' class='btn-premium btn-secondary-custom' style='width: 100%;'>
+                    Logout
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <main class='admin-main'>
+        <header class='admin-header'>
+            <div style='display: flex; align-items: center; gap: 1rem;'>
+                <button class='mobile-nav-toggle' @onclick='ToggleSidebar'>
+                    <svg width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='3' y1='12' x2='21' y2='12'></line><line x1='3' y1='6' x2='21' y2='6'></line><line x1='3' y1='18' x2='21' y2='18'></line></svg>
+                </button>
+                <div class='header-school'>
+                    Teacher Portal
+                </div>
+            </div>
+            <div class='header-profile' style='display: flex; align-items: center; gap: 0.75rem;'>
+                <span class='profile-name'>@userDisplayName</span>
+                <img class='header-avatar' id='header-avatar' src='@profilePictureUrl' alt='Header Avatar' style='width: 32px; height: 32px; border-radius: 50%; object-fit: cover;' />
+            </div>
+        </header>
+        <div class='admin-content'>
+            @Body
+        </div>
+    </main>
+</div>
+
+@code {
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+
+    private string userDisplayName = "";
+    private string profilePictureUrl = "/uploads/profile-pictures/default-avatar.png";
+    private bool isSidebarOpen = false;
+
+    private void ToggleSidebar() { isSidebarOpen = !isSidebarOpen; }
+    private void CloseSidebar() { isSidebarOpen = false; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userPrincipal = authState.User;
+        if (userPrincipal.Identity?.IsAuthenticated == true)
+        {
+            var user = await UserManager.GetUserAsync(userPrincipal);
+            if (user != null)
+            {
+                userDisplayName = user.FullName;
+                if (string.IsNullOrEmpty(userDisplayName))
+                {
+                    userDisplayName = user.UserName ?? "Teacher";
+                }
+                if (!string.IsNullOrEmpty(user.ProfilePicturePath))
+                {
+                    profilePictureUrl = user.ProfilePicturePath;
+                }
+            }
+            else
+            {
+                userDisplayName = userPrincipal.Identity.Name ?? "Teacher";
+            }
+        }
+        else
+        {
+            NavigationManager.NavigateTo("Account/Login", true);
+        }
+    }
+}

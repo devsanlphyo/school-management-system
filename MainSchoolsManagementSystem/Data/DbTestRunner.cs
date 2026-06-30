@@ -32,6 +32,8 @@ namespace MainSchoolsManagementSystem.Data
                 {
                     UserName = "teacher@stjude.edu",
                     Email = "teacher@stjude.edu",
+                    FullName = "Alice Johnson",
+                    PhoneNumber = "1234567890",
                     SchoolId = school.Id
                 };
                 

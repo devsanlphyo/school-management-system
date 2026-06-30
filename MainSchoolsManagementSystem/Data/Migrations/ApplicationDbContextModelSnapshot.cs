@@ -53,6 +53,12 @@ namespace MainSchoolsManagementSystem.Migrations
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProfilePicturePath")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int?>("SchoolId")
                         .HasColumnType("int");
 
@@ -128,6 +134,130 @@ namespace MainSchoolsManagementSystem.Migrations
                     b.HasIndex("SchoolId");
 
                     b.ToTable("Departments");
+                });
+
+            modelBuilder.Entity("MainSchoolsManagementSystem.Data.FeedPost", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.ToTable("FeedPosts");
+                });
+
+            modelBuilder.Entity("MainSchoolsManagementSystem.Data.FeedPostComment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FeedPostId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("FeedPostId");
+
+                    b.ToTable("FeedPostComments");
+                });
+
+            modelBuilder.Entity("MainSchoolsManagementSystem.Data.FeedPostMedia", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("FeedPostId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FeedPostId");
+
+                    b.ToTable("FeedPostMedias");
+                });
+
+            modelBuilder.Entity("MainSchoolsManagementSystem.Data.FeedPostReaction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FeedPostId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("FeedPostId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("FeedPostReactions");
                 });
 
             modelBuilder.Entity("MainSchoolsManagementSystem.Data.LeaveRequest", b =>
@@ -483,6 +613,66 @@ namespace MainSchoolsManagementSystem.Migrations
                     b.Navigation("School");
                 });
 
+            modelBuilder.Entity("MainSchoolsManagementSystem.Data.FeedPost", b =>
+                {
+                    b.HasOne("MainSchoolsManagementSystem.Data.ApplicationUser", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+                });
+
+            modelBuilder.Entity("MainSchoolsManagementSystem.Data.FeedPostComment", b =>
+                {
+                    b.HasOne("MainSchoolsManagementSystem.Data.ApplicationUser", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MainSchoolsManagementSystem.Data.FeedPost", "FeedPost")
+                        .WithMany("Comments")
+                        .HasForeignKey("FeedPostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("FeedPost");
+                });
+
+            modelBuilder.Entity("MainSchoolsManagementSystem.Data.FeedPostMedia", b =>
+                {
+                    b.HasOne("MainSchoolsManagementSystem.Data.FeedPost", "FeedPost")
+                        .WithMany("MediaItems")
+                        .HasForeignKey("FeedPostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FeedPost");
+                });
+
+            modelBuilder.Entity("MainSchoolsManagementSystem.Data.FeedPostReaction", b =>
+                {
+                    b.HasOne("MainSchoolsManagementSystem.Data.FeedPost", "FeedPost")
+                        .WithMany("Reactions")
+                        .HasForeignKey("FeedPostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MainSchoolsManagementSystem.Data.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FeedPost");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("MainSchoolsManagementSystem.Data.LeaveRequest", b =>
                 {
                     b.HasOne("MainSchoolsManagementSystem.Data.ApplicationUser", "Teacher")
@@ -608,6 +798,15 @@ namespace MainSchoolsManagementSystem.Migrations
             modelBuilder.Entity("MainSchoolsManagementSystem.Data.Department", b =>
                 {
                     b.Navigation("Subjects");
+                });
+
+            modelBuilder.Entity("MainSchoolsManagementSystem.Data.FeedPost", b =>
+                {
+                    b.Navigation("Comments");
+
+                    b.Navigation("MediaItems");
+
+                    b.Navigation("Reactions");
                 });
 
             modelBuilder.Entity("MainSchoolsManagementSystem.Data.School", b =>

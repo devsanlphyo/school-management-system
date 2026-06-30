@@ -1,0 +1,207 @@
+@using MainSchoolsManagementSystem.Data
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Net.Http.Headers
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject NavigationManager NavigationManager
+
+<div class="create-post-overlay" style="display: flex;">
+  <div class="create-header">
+    <button class="action-btn" @onclick="GoBack" style="color: var(--text-primary);">
+      <svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg> Back
+    </button>
+    <h3 style="font-size: 1.1rem;">Create Post</h3>
+    <button class="btn-primary" style="display: flex; align-items: center; gap: 6px;" @onclick="SubmitPost" disabled="@isSubmitting">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        @(isSubmitting ? "Posting..." : "Post")
+    </button>
+  </div>
+  
+  <div class="create-content">
+    <div class="post-author-row" style="margin-bottom: 1rem;">
+      <div class="avatar">@AvatarInitials</div>
+      <div class="post-author-info">
+        <h4>@CurrentUserName</h4>
+        <div class="post-time" style="display: flex; align-items: center; gap: 4px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            Visible to Everyone
+        </div>
+      </div>
+    </div>
+    
+    <textarea class="create-textarea" placeholder="What's on your mind?" @bind="postContent" style="background: transparent; color: var(--text-primary);"></textarea>
+    
+    @if (selectedFiles.Any())
+    {
+        <div class="media-grid count-@Math.Min(4, selectedFiles.Count)" style="margin-bottom: 1.5rem;">
+            @for (int i = 0; i < Math.Min(4, selectedFiles.Count); i++)
+            {
+                var file = selectedFiles[i];
+                bool isLastAndMore = i == 3 && selectedFiles.Count > 4;
+                
+                <div class="media-item" style="background-color: var(--border);">
+                    <div style="display:flex; align-items:center; justify-content:center; height:100%; padding:1rem; text-align:center;">
+                        @file.Name
+                    </div>
+                    @if (isLastAndMore)
+                    {
+                        <div class="more-overlay">+@(selectedFiles.Count - 4)</div>
+                    }
+                </div>
+            }
+        </div>
+        <button class="btn btn-sm btn-outline-danger mb-3" style="display: flex; align-items: center; gap: 4px;" @onclick="() => selectedFiles.Clear()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+            Clear Files
+        </button>
+    }
+    else
+    {
+        <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+          <svg viewBox="0 0 24 24" style="width: 48px; height: 48px; margin-bottom: 1rem;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+          <h4>Add Photos/Videos</h4>
+          <p style="font-size: 0.85rem; margin-top: 0.5rem;">Click to browse</p>
+          <p style="font-size: 0.75rem; margin-top: 0.25rem;">Max size: 200MB per file. Max items: 20</p>
+        </div>
+    }
+    
+    <InputFile id="fileInput" OnChange="HandleFileSelection" multiple style="display: none;" />
+    
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mt-3">@errorMessage</div>
+    }
+  </div>
+</div>
+
+@code {
+    [Parameter] public string CurrentRole { get; set; } = "";
+    
+    private string postContent = "";
+    private List<IBrowserFile> selectedFiles = new();
+    private string? currentUserId;
+    private string CurrentUserName = "User";
+    private string AvatarInitials = "U";
+    private bool isSubmitting = false;
+    private string errorMessage = "";
+    private const long MAX_FILE_SIZE = 210 * 1024 * 1024; // ~210MB
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            CurrentUserName = user.Identity.Name ?? "User";
+            AvatarInitials = CurrentUserName.Substring(0, 1).ToUpper();
+        }
+    }
+    
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/{CurrentRole.ToLower()}/feed");
+    }
+    
+    private void HandleFileSelection(InputFileChangeEventArgs e)
+    {
+        errorMessage = "";
+        var files = e.GetMultipleFiles(20);
+        foreach (var file in files)
+        {
+            if (file.Size > MAX_FILE_SIZE)
+            {
+                errorMessage = $"File {file.Name} is too large (max 200MB).";
+                return;
+            }
+        }
+        selectedFiles = files.ToList();
+    }
+    
+    private async Task SubmitPost()
+    {
+        if (string.IsNullOrWhiteSpace(postContent) && !selectedFiles.Any())
+        {
+            errorMessage = "Please enter some text or attach files.";
+            return;
+        }
+        if (currentUserId == null) return;
+        
+        isSubmitting = true;
+        errorMessage = "";
+        
+        try
+        {
+            using var db = await DbContextFactory.CreateDbContextAsync();
+            var post = new FeedPost
+            {
+                AuthorId = currentUserId,
+                Content = postContent,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.FeedPosts.Add(post);
+            await db.SaveChangesAsync();
+            
+            // Handle file upload
+            if (selectedFiles.Any())
+            {
+                // Due to Blazor server file limits, for real large files we should use a proper endpoint 
+                // or increase SignalR message size. For now we will save locally if within limits.
+                
+                // We actually can't inject IWebHostEnvironment easily into a component if it's not registered or we just use Path.
+                // Let's use a simple service or just write to wwwroot if we can. 
+                // Better yet, we can use HttpClient to POST to the endpoint we created.
+                using var client = new System.Net.Http.HttpClient();
+                client.BaseAddress = new Uri(NavigationManager.BaseUri);
+                using var content = new System.Net.Http.MultipartFormDataContent();
+                
+                int sortOrder = 0;
+                foreach(var file in selectedFiles)
+                {
+                    var fileContent = new System.Net.Http.StreamContent(file.OpenReadStream(MAX_FILE_SIZE));
+                    fileContent.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+                    content.Add(fileContent, "files", file.Name);
+                }
+                
+                // Add an auth header if needed or rely on cookies (since we are on the same domain)
+                // Actually Blazor Server doesn't share cookies easily in HttpClient, so we will just write the files directly here.
+                
+                var uploadDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "uploads", "feed");
+                if (!System.IO.Directory.Exists(uploadDir)) System.IO.Directory.CreateDirectory(uploadDir);
+                
+                foreach(var file in selectedFiles)
+                {
+                    var storedFileName = Guid.NewGuid().ToString() + System.IO.Path.GetExtension(file.Name);
+                    var filePath = System.IO.Path.Combine(uploadDir, storedFileName);
+                    
+                    using var fs = new System.IO.FileStream(filePath, System.IO.FileMode.Create);
+                    await file.OpenReadStream(MAX_FILE_SIZE).CopyToAsync(fs);
+                    
+                    db.FeedPostMedias.Add(new FeedPostMedia
+                    {
+                        FeedPostId = post.Id,
+                        FileName = file.Name,
+                        StoredFileName = storedFileName,
+                        ContentType = file.ContentType,
+                        FileSize = file.Size,
+                        SortOrder = sortOrder++
+                    });
+                }
+                await db.SaveChangesAsync();
+            }
+            
+            NavigationManager.NavigateTo($"/{CurrentRole.ToLower()}/feed");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error posting: " + ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

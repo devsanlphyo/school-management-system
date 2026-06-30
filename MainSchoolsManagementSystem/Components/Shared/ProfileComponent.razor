@@ -1,0 +1,245 @@
+@using Microsoft.AspNetCore.Identity
+@using MainSchoolsManagementSystem.Data
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.EntityFrameworkCore
+@inject IServiceProvider ServiceProvider
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+
+<div class="d-flex flex-column" style="max-width: 600px; gap: 2rem;">
+    <!-- Header -->
+    <div>
+        <h2 style="font-size: 1.85rem; font-weight: 900; color: var(--text-primary); margin-bottom: 0.4rem;">My Profile</h2>
+        <p style="color: var(--text-muted); font-size: 0.92rem;">Manage your personal information and account security.</p>
+    </div>
+
+    <!-- Profile Card -->
+    <div class="glass-panel" style="display: flex; flex-direction: column; gap: 1.75rem; padding: 2rem;">
+        
+        <!-- School Information Section (Read Only) -->
+        <div>
+            <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 1rem; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                School Information
+            </h3>
+            
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label">School Name</label>
+                <div class="form-control-custom" style="background: rgba(0,0,0,0.02); display: flex; align-items: center; color: var(--text-primary);">
+                    @schoolName
+                </div>
+            </div>
+        </div>
+
+        <!-- Personal Information Section -->
+        <div>
+            <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 1rem; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                Personal Information
+            </h3>
+            
+            <EditForm Model="profileModel" OnValidSubmit="UpdateProfileAsync">
+                <DataAnnotationsValidator />
+                
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label">Full Name</label>
+                    <InputText class="form-control-custom" @bind-Value="profileModel.FullName" placeholder="Enter your full name" />
+                    <ValidationMessage For="@(() => profileModel.FullName)" class="text-danger" style="font-size: 0.8rem; margin-top: 0.25rem; display: block;" />
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label">Email Address</label>
+                    <InputText class="form-control-custom" @bind-Value="profileModel.Email" disabled />
+                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; display: block;">Email address cannot be changed from this portal.</span>
+                </div>
+
+                @if (showSuccessAlert)
+                {
+                    <div class="badge badge-green" style="padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; width: 100%; margin-bottom: 1rem;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        Profile updated successfully!
+                    </div>
+                }
+
+                <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                    <button type="submit" class="btn-premium">Save Changes</button>
+                </div>
+            </EditForm>
+        </div>
+        
+        <!-- Change Password Section -->
+        <div style="margin-top: 1rem;">
+            <h3 style="font-size: 1.1rem; font-weight: 800; margin-bottom: 1rem; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                Change Password
+            </h3>
+            
+            <EditForm Model="passwordModel" OnValidSubmit="ChangePasswordAsync">
+                <DataAnnotationsValidator />
+                
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label">Current Password</label>
+                    <InputText type="password" class="form-control-custom" @bind-Value="passwordModel.CurrentPassword" />
+                    <ValidationMessage For="@(() => passwordModel.CurrentPassword)" class="text-danger" style="font-size: 0.8rem; margin-top: 0.25rem; display: block;" />
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label">New Password</label>
+                    <InputText type="password" class="form-control-custom" @bind-Value="passwordModel.NewPassword" />
+                    <ValidationMessage For="@(() => passwordModel.NewPassword)" class="text-danger" style="font-size: 0.8rem; margin-top: 0.25rem; display: block;" />
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label">Confirm New Password</label>
+                    <InputText type="password" class="form-control-custom" @bind-Value="passwordModel.ConfirmPassword" />
+                    <ValidationMessage For="@(() => passwordModel.ConfirmPassword)" class="text-danger" style="font-size: 0.8rem; margin-top: 0.25rem; display: block;" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(passwordError))
+                {
+                    <div class="badge" style="background-color: rgba(239,68,68,0.1); color: var(--danger); padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; width: 100%; margin-bottom: 1rem;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        @passwordError
+                    </div>
+                }
+
+                @if (showPasswordSuccessAlert)
+                {
+                    <div class="badge badge-green" style="padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; width: 100%; margin-bottom: 1rem;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        Password changed successfully!
+                    </div>
+                }
+
+                <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                    <button type="submit" class="btn-premium">Update Password</button>
+                </div>
+            </EditForm>
+        </div>
+        
+    </div>
+</div>
+
+@code {
+    private ApplicationUser? currentUser;
+    private string schoolName = "Loading...";
+    
+    // Profile
+    private ProfileModel profileModel = new();
+    private bool showSuccessAlert = false;
+
+    // Password
+    private PasswordModel passwordModel = new();
+    private bool showPasswordSuccessAlert = false;
+    private string passwordError = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            using var scope = ServiceProvider.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
+            
+            currentUser = await userManager.GetUserAsync(user);
+            if (currentUser != null)
+            {
+                profileModel.FullName = currentUser.FullName ?? "";
+                profileModel.Email = currentUser.Email ?? "";
+                
+                if (currentUser.SchoolId.HasValue)
+                {
+                    using var db = await dbContextFactory.CreateDbContextAsync();
+                    var school = await db.Schools.FindAsync(currentUser.SchoolId.Value);
+                    schoolName = school?.Name ?? "No School Associated";
+                }
+                else
+                {
+                    schoolName = "System Admin (No School)";
+                }
+            }
+        }
+    }
+
+    private async Task UpdateProfileAsync()
+    {
+        if (currentUser != null)
+        {
+            using var scope = ServiceProvider.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            
+            // Re-fetch user in the new scope to avoid detached entity issues
+            var dbUser = await userManager.FindByIdAsync(currentUser.Id);
+            if (dbUser != null)
+            {
+                dbUser.FullName = profileModel.FullName;
+                var result = await userManager.UpdateAsync(dbUser);
+                if (result.Succeeded)
+                {
+                    showSuccessAlert = true;
+                    StateHasChanged();
+                    await Task.Delay(1500);
+                    showSuccessAlert = false;
+                    StateHasChanged();
+                    
+                    NavigationManager.Refresh(true);
+                }
+            }
+        }
+    }
+    
+    private async Task ChangePasswordAsync()
+    {
+        passwordError = "";
+        if (currentUser != null)
+        {
+            if (passwordModel.NewPassword != passwordModel.ConfirmPassword)
+            {
+                passwordError = "New password and confirmation do not match.";
+                return;
+            }
+
+            using var scope = ServiceProvider.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            
+            var dbUser = await userManager.FindByIdAsync(currentUser.Id);
+            if (dbUser != null)
+            {
+                var result = await userManager.ChangePasswordAsync(dbUser, passwordModel.CurrentPassword, passwordModel.NewPassword);
+                if (result.Succeeded)
+                {
+                    showPasswordSuccessAlert = true;
+                    passwordModel = new(); // reset
+                    StateHasChanged();
+                    await Task.Delay(3000);
+                    showPasswordSuccessAlert = false;
+                    StateHasChanged();
+                }
+                else
+                {
+                    passwordError = string.Join(" ", result.Errors.Select(e => e.Description));
+                }
+            }
+        }
+    }
+
+    public class ProfileModel
+    {
+        [Required(ErrorMessage = "Full Name is required.")]
+        public string FullName { get; set; } = "";
+        public string Email { get; set; } = "";
+    }
+    
+    public class PasswordModel
+    {
+        [Required(ErrorMessage = "Current password is required.")]
+        public string CurrentPassword { get; set; } = "";
+        
+        [Required(ErrorMessage = "New password is required.")]
+        [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]
+        public string NewPassword { get; set; } = "";
+        
+        [Required(ErrorMessage = "Please confirm the new password.")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

@@ -23,18 +23,30 @@
             {
                 NavigationManager.NavigateTo("admin/schools");
             }
-            else if (user.IsInRole("Headmaster") || user.IsInRole("Officer"))
+            else if (user.IsInRole("Director"))
             {
-                NavigationManager.NavigateTo("headmaster/dashboard");
+                NavigationManager.NavigateTo("director/dashboard");
+            }
+            else if (user.IsInRole("Headmaster"))
+            {
+                NavigationManager.NavigateTo("headmaster/attendance");
             }
             else if (user.IsInRole("Teacher"))
             {
-                NavigationManager.NavigateTo("teacher/dashboard");
+                NavigationManager.NavigateTo("teacher/feed");
+            }
+            else if (user.IsInRole("Assistant"))
+            {
+                NavigationManager.NavigateTo("assistant/schedule");
+            }
+            else if (user.IsInRole("Officer"))
+            {
+                NavigationManager.NavigateTo("officer/feed");
             }
             else
             {
                 // Default fallback
-                NavigationManager.NavigateTo("teacher/dashboard");
+                NavigationManager.NavigateTo("teacher/feed");
             }
         }
         else

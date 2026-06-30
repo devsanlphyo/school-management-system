@@ -53,7 +53,7 @@
                         <th>Teacher</th>
                         <th>Status</th>
                         <th>Check-in Time</th>
-                        <th style="text-align: right;">Quick Status Override</th>
+
                     </tr>
                 </thead>
                 <tbody>
@@ -89,32 +89,14 @@
                                 <td>
                                     @(record.Attendance?.CheckedInAt?.ToLocalTime().ToString("hh:mm tt") ?? "—")
                                 </td>
-                                <td style="text-align: right;">
-                                    <div style="display: inline-flex; gap: 0.35rem;">
-                                        <button class="btn-premium @(record.Attendance?.Status == AttendanceStatus.Present ? "" : "btn-secondary-custom")"
-                                                style="padding: 0.4rem 0.75rem; font-size: 0.75rem; font-weight: 600;"
-                                                @onclick="() => SetAttendance(record.Teacher.Id, AttendanceStatus.Present)">
-                                            Present
-                                        </button>
-                                        <button class="btn-premium @(record.Attendance?.Status == AttendanceStatus.Late ? "warning" : "btn-secondary-custom")"
-                                                style="padding: 0.4rem 0.75rem; font-size: 0.75rem; font-weight: 600; @(record.Attendance?.Status == AttendanceStatus.Late ? "background: var(--warning); border-color: var(--warning);" : "")"
-                                                @onclick="() => SetAttendance(record.Teacher.Id, AttendanceStatus.Late)">
-                                            Late
-                                        </button>
-                                        <button class="btn-premium @(record.Attendance != null && record.Attendance.Status == AttendanceStatus.Absent ? "danger" : "btn-secondary-custom")"
-                                                style="padding: 0.4rem 0.75rem; font-size: 0.75rem; font-weight: 600; @(record.Attendance != null && record.Attendance.Status == AttendanceStatus.Absent ? "background: var(--danger); border-color: var(--danger);" : "")"
-                                                @onclick="() => SetAttendance(record.Teacher.Id, AttendanceStatus.Absent)">
-                                            Absent
-                                        </button>
-                                    </div>
-                                </td>
+
                             </tr>
                         }
                     }
                     else
                     {
                         <tr>
-                            <td colspan="4" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                            <td colspan="3" style="text-align: center; padding: 3rem; color: var(--text-muted);">
                                 No teachers registered in this school.
                             </td>
                         </tr>
@@ -190,45 +172,7 @@
         absentCount = teachersAttendance.Count(r => r.Attendance == null || r.Attendance.Status == AttendanceStatus.Absent);
     }
 
-    private async Task SetAttendance(string teacherId, AttendanceStatus status)
-    {
-        if (!schoolId.HasValue) return;
 
-        var record = teachersAttendance.FirstOrDefault(r => r.Teacher.Id == teacherId);
-        if (record == null) return;
-
-        if (record.Attendance == null)
-        {
-            // Create new record
-            var newAttendance = new MainSchoolsManagementSystem.Data.Attendance
-            {
-                TeacherId = teacherId,
-                Date = selectedDate.Date,
-                Status = status,
-                CheckedInAt = (status == AttendanceStatus.Present || status == AttendanceStatus.Late) ? DateTime.UtcNow : null
-            };
-            DbContext.Attendances.Add(newAttendance);
-            record.Attendance = newAttendance;
-        }
-        else
-        {
-            // Update existing record
-            record.Attendance.Status = status;
-            if (status == AttendanceStatus.Absent)
-            {
-                record.Attendance.CheckedInAt = null;
-            }
-            else if (record.Attendance.CheckedInAt == null)
-            {
-                record.Attendance.CheckedInAt = DateTime.UtcNow;
-            }
-            DbContext.Attendances.Update(record.Attendance);
-        }
-
-        await DbContext.SaveChangesAsync();
-        CalculateStats();
-        StateHasChanged();
-    }
 
     public class TeacherAttendanceRecord
     {

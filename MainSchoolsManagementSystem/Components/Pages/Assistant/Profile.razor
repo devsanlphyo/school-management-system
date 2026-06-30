@@ -1,0 +1,8 @@
+@page "/assistant/profile"
+@layout MainSchoolsManagementSystem.Components.Layout.AssistantLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Assistant")]
+@using MainSchoolsManagementSystem.Components.Shared
+
+<PageTitle>Profile - Assistant Portal</PageTitle>
+
+<ProfileComponent />

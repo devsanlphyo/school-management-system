@@ -14,13 +14,18 @@ namespace MainSchoolsManagementSystem.Data
         public DbSet<Subject> Subjects { get; set; }
         public DbSet<SchoolClass> SchoolClasses { get; set; }
         public DbSet<TeacherAssignment> TeacherAssignments { get; set; }
+        
+        public DbSet<FeedPost> FeedPosts { get; set; }
+        public DbSet<FeedPostMedia> FeedPostMedias { get; set; }
+        public DbSet<FeedPostReaction> FeedPostReactions { get; set; }
+        public DbSet<FeedPostComment> FeedPostComments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
 
             // Ignore unwanted default IdentityUser columns in the database
-            builder.Entity<ApplicationUser>().Ignore(u => u.PhoneNumber);
+            // builder.Entity<ApplicationUser>().Ignore(u => u.PhoneNumber);
             builder.Entity<ApplicationUser>().Ignore(u => u.PhoneNumberConfirmed);
             builder.Entity<ApplicationUser>().Ignore(u => u.TwoFactorEnabled);
             builder.Entity<ApplicationUser>().Ignore(u => u.LockoutEnd);
@@ -87,6 +92,46 @@ namespace MainSchoolsManagementSystem.Data
                 .HasOne(ta => ta.Subject)
                 .WithMany()
                 .HasForeignKey(ta => ta.SubjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<FeedPost>()
+                .HasOne(fp => fp.Author)
+                .WithMany()
+                .HasForeignKey(fp => fp.AuthorId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<FeedPostMedia>()
+                .HasOne(fpm => fpm.FeedPost)
+                .WithMany(fp => fp.MediaItems)
+                .HasForeignKey(fpm => fpm.FeedPostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<FeedPostReaction>()
+                .HasOne(fpr => fpr.FeedPost)
+                .WithMany(fp => fp.Reactions)
+                .HasForeignKey(fpr => fpr.FeedPostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<FeedPostReaction>()
+                .HasOne(fpr => fpr.User)
+                .WithMany()
+                .HasForeignKey(fpr => fpr.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<FeedPostReaction>()
+                .HasIndex(fpr => new { fpr.FeedPostId, fpr.UserId })
+                .IsUnique();
+
+            builder.Entity<FeedPostComment>()
+                .HasOne(fpc => fpc.FeedPost)
+                .WithMany(fp => fp.Comments)
+                .HasForeignKey(fpc => fpc.FeedPostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<FeedPostComment>()
+                .HasOne(fpc => fpc.Author)
+                .WithMany()
+                .HasForeignKey(fpc => fpc.AuthorId)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

@@ -1,0 +1,8 @@
+@page "/assistant/feed/create"
+@layout MainSchoolsManagementSystem.Components.Layout.AssistantLayout
+@using MainSchoolsManagementSystem.Components.Shared
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Assistant")]
+
+<PageTitle>Create Post - Assistant</PageTitle>
+
+<CreateFeedPostComponent CurrentRole="Assistant" />

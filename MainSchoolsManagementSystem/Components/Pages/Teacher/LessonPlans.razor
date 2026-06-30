@@ -1,0 +1,428 @@
+@page "/teacher/lessonplans"
+@layout MainSchoolsManagementSystem.Components.Layout.TeacherLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Teacher")]
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject MainSchoolsManagementSystem.Data.ApplicationDbContext DbContext
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using MainSchoolsManagementSystem.Data
+@using System.IO
+
+<PageTitle>Lesson Plans - Teacher</PageTitle>
+
+<div class="d-flex flex-column gap-4">
+    <!-- Header -->
+    <div>
+        <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">My Lesson Plans</h2>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">Submit your daily lesson plans and view review feedback.</p>
+    </div>
+
+    <!-- Status & Submission Card -->
+    <div style="display: flex; flex-wrap: wrap; gap: 1.5rem;">
+        <!-- Today's Status -->
+        <div class="glass-panel" style="flex: 1 1 300px; padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <h3 style="font-size: 1.15rem; margin-bottom: 0.75rem; color: var(--text-primary);">Today's Submission</h3>
+                @if (todayPlan != null)
+                {
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                        <span class="badge badge-present">Submitted</span>
+                        @if (todayPlan.IsLate)
+                        {
+                            <span class="badge badge-late">Late</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-indigo">On Time</span>
+                        }
+                    </div>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">
+                        Submitted at: <strong>@todayPlan.UploadedAt.ToLocalTime().ToString("t")</strong>
+                    </p>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                        Review Status: 
+                        @if (todayPlan.Status == LessonPlanStatus.Pending)
+                        {
+                            <span class="badge badge-pending">Pending Review</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-approved">Reviewed</span>
+                        }
+                    </p>
+                }
+                else
+                {
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                        <span class="badge badge-absent">Pending Submission</span>
+                    </div>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">
+                        Please upload your lesson plan for today before the deadline: <strong>@dailyDeadline.ToString(@"hh\:mm")</strong>
+                    </p>
+                }
+            </div>
+            
+            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.85rem; color: var(--text-muted);">
+                Daily Deadline: @dailyDeadline.ToString(@"hh\:mm")
+            </div>
+        </div>
+
+        <!-- Submission Form -->
+        <div class="glass-panel" style="flex: 2 1 500px; padding: 1.5rem;">
+            <h3 style="font-size: 1.15rem; margin-bottom: 1rem; color: var(--text-primary);">Upload Lesson Plan</h3>
+            
+            @if (todayPlan != null)
+            {
+                <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid var(--success-border); border-radius: var(--radius-md); padding: 1.5rem; text-align: center; color: var(--success);">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 0.5rem;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    <p style="font-weight: 600;">You have already submitted a lesson plan for today.</p>
+                </div>
+            }
+            else
+            {
+                <EditForm Model="this" OnValidSubmit="HandleSubmit" Style="display: flex; flex-direction: column; gap: 1rem;">
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div style="background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger); padding: 0.75rem; border-radius: var(--radius-sm); font-size: 0.9rem;">
+                            @errorMessage
+                        </div>
+                    }
+
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">Lesson Plan File (PDF, DOCX, etc.)</label>
+                        <InputFile OnChange="OnLessonPlanSelected" class="form-control-custom" style="padding: 0.5rem;" />
+                    </div>
+
+                    @if (isSubmissionLate)
+                    {
+                        <div style="background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: var(--radius-md); padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--warning); font-weight: 700; font-size: 0.85rem; text-transform: uppercase;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                Late Submission Justification Required
+                            </div>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                                You are submitting past the deadline (@dailyDeadline.ToString(@"hh\:mm")). Please provide a justification.
+                            </p>
+                            <div class="form-group" style="margin: 0;">
+                                <textarea class="form-control-custom" style="min-height: 80px; resize: vertical;" 
+                                          placeholder="Enter lateness justification..." 
+                                          @bind="justificationText"></textarea>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Optional Justification Attachment</label>
+                                <InputFile OnChange="OnJustificationSelected" class="form-control-custom" style="padding: 0.5rem; font-size: 0.85rem;" />
+                            </div>
+                        </div>
+                    }
+
+                    <div style="display: flex; justify-content: flex-end; margin-top: 0.5rem;">
+                        <button type="submit" class="btn-premium" style="display: flex; align-items: center; gap: 0.5rem;" disabled="@isUploading">
+                            @if (isUploading)
+                            {
+                                <span>Uploading...</span>
+                            }
+                            else
+                            {
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                <span>Submit Lesson Plan</span>
+                            }
+                        </button>
+                    </div>
+                </EditForm>
+            }
+        </div>
+    </div>
+
+    <!-- History List -->
+    <div class="glass-panel" style="padding: 0;">
+        <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="font-size: 1.15rem; color: var(--text-primary); margin: 0;">Submission History</h3>
+            <span style="font-size: 0.85rem; color: var(--text-muted);">Total Submissions: @pastPlans.Count</span>
+        </div>
+        <div class="table-container">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th>Date Submitted</th>
+                        <th>Compliance</th>
+                        <th>Lesson Plan File</th>
+                        <th>Justification Attachment</th>
+                        <th>Review Status</th>
+                        <th>Feedback</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (pastPlans.Any())
+                    {
+                        foreach (var plan in pastPlans)
+                        {
+                            <tr>
+                                <td>
+                                    <div style="font-weight: 600; color: var(--text-primary);">
+                                        @plan.UploadedAt.ToLocalTime().ToString("g")
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (plan.IsLate)
+                                    {
+                                        <span class="badge badge-late" style="cursor: help;" title="Submitted past the deadline">
+                                            Late Submission
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-present">On Time</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (lessonPlanUrls.TryGetValue(plan.Id, out var url))
+                                    {
+                                        <a href="@url" target="_blank" class="btn-premium btn-secondary-custom" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                            Download
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <span style="color: var(--text-muted); font-size: 0.85rem;">No file</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (plan.HasJustificationAttachment && justificationUrls.TryGetValue(plan.Id, out var jUrl))
+                                    {
+                                        <a href="@jUrl" target="_blank" class="btn-premium btn-secondary-custom" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                            Attachment
+                                        </a>
+                                    }
+                                    else if (plan.IsLate)
+                                    {
+                                        <span style="color: var(--text-muted); font-size: 0.85rem;" title="@plan.JustificationText">Text Only</span>
+                                    }
+                                    else
+                                    {
+                                        <span style="color: var(--text-muted); font-size: 0.85rem;">N/A</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (plan.Status == LessonPlanStatus.Pending)
+                                    {
+                                        <span class="badge badge-pending">Pending Review</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-approved">Reviewed</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div style="font-size: 0.9rem; color: var(--text-secondary); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="@plan.Feedback">
+                                        @(string.IsNullOrEmpty(plan.Feedback) ? "-" : plan.Feedback)
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                No lesson plans found.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string? userId;
+    private TimeSpan dailyDeadline = new TimeSpan(8, 30, 0);
+    private LessonPlan? todayPlan;
+    private List<LessonPlan> pastPlans = new();
+    private Dictionary<int, string> lessonPlanUrls = new();
+    private Dictionary<int, string> justificationUrls = new();
+    
+    private IBrowserFile? selectedLessonPlanFile;
+    private IBrowserFile? selectedJustificationFile;
+    private string justificationText = "";
+    
+    private bool isSubmissionLate = false;
+    private bool isUploading = false;
+    private string errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var appUser = await UserManager.GetUserAsync(user);
+            if (appUser != null)
+            {
+                userId = appUser.Id;
+                await LoadData();
+            }
+        }
+    }
+
+    private async Task LoadData()
+    {
+        if (string.IsNullOrEmpty(userId)) return;
+
+        // Load setting
+        var setting = await DbContext.SystemSettings.FirstOrDefaultAsync();
+        if (setting != null)
+        {
+            dailyDeadline = setting.DailyDeadline;
+        }
+
+        // Check if current time is past deadline
+        isSubmissionLate = DateTime.Now.TimeOfDay > dailyDeadline;
+
+        // Load today's plan
+        var today = DateTime.Today;
+        todayPlan = await DbContext.LessonPlans
+            .FirstOrDefaultAsync(lp => lp.TeacherId == userId && lp.UploadedAt >= today && lp.UploadedAt < today.AddDays(1));
+
+        // Load all past plans
+        pastPlans = await DbContext.LessonPlans
+            .Where(lp => lp.TeacherId == userId)
+            .OrderByDescending(lp => lp.UploadedAt)
+            .ToListAsync();
+            
+        LoadFileUrls();
+    }
+
+    private void OnLessonPlanSelected(InputFileChangeEventArgs e)
+    {
+        selectedLessonPlanFile = e.File;
+        errorMessage = "";
+    }
+
+    private void OnJustificationSelected(InputFileChangeEventArgs e)
+    {
+        selectedJustificationFile = e.File;
+    }
+
+    private void LoadFileUrls()
+    {
+        lessonPlanUrls.Clear();
+        justificationUrls.Clear();
+        var uploadsPath = Path.Combine(Env.WebRootPath, "uploads");
+        if (Directory.Exists(uploadsPath))
+        {
+            var files = Directory.GetFiles(uploadsPath);
+            foreach (var file in files)
+            {
+                var fileName = Path.GetFileName(file);
+                if (fileName.StartsWith("lessonplan_"))
+                {
+                    var idStr = Path.GetFileNameWithoutExtension(fileName).Substring("lessonplan_".Length);
+                    if (int.TryParse(idStr, out int id)) lessonPlanUrls[id] = $"/uploads/{fileName}";
+                }
+                else if (fileName.StartsWith("justification_"))
+                {
+                    var idStr = Path.GetFileNameWithoutExtension(fileName).Substring("justification_".Length);
+                    if (int.TryParse(idStr, out int id)) justificationUrls[id] = $"/uploads/{fileName}";
+                }
+            }
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (isUploading) return;
+        isUploading = true;
+        errorMessage = "";
+
+        try
+        {
+            var today = DateTime.Today;
+            var existing = await DbContext.LessonPlans.FirstOrDefaultAsync(lp => lp.TeacherId == userId && lp.UploadedAt >= today && lp.UploadedAt < today.AddDays(1));
+            if (existing != null)
+            {
+                errorMessage = "You have already submitted a lesson plan for today.";
+                return;
+            }
+
+            if (selectedLessonPlanFile == null)
+            {
+                errorMessage = "Please select a lesson plan file to upload.";
+                return;
+            }
+
+        // Re-evaluate lateness in case the user waited on the page past the deadline
+        isSubmissionLate = DateTime.Now.TimeOfDay > dailyDeadline;
+
+        if (isSubmissionLate && string.IsNullOrWhiteSpace(justificationText))
+        {
+            errorMessage = "Justification text is required for late submissions.";
+            return;
+        }
+
+
+            var uploadsPath = Path.Combine(Env.WebRootPath, "uploads");
+            if (!Directory.Exists(uploadsPath))
+            {
+                Directory.CreateDirectory(uploadsPath);
+            }
+
+            // Create db record
+            var lp = new LessonPlan
+            {
+                TeacherId = userId!,
+                UploadedAt = DateTime.Now,
+                IsLate = isSubmissionLate,
+                JustificationText = isSubmissionLate ? justificationText : null,
+                Status = LessonPlanStatus.Pending,
+                HasJustificationAttachment = false
+            };
+
+            DbContext.LessonPlans.Add(lp);
+            await DbContext.SaveChangesAsync();
+
+            // Save lesson plan file
+            var lpExt = Path.GetExtension(selectedLessonPlanFile.Name);
+            var lpPath = Path.Combine(uploadsPath, $"lessonplan_{lp.Id}{lpExt}");
+            using (var fs = new FileStream(lpPath, FileMode.Create))
+            {
+                await selectedLessonPlanFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(fs);
+            }
+
+            // Save justification file if selected
+            if (isSubmissionLate && selectedJustificationFile != null)
+            {
+                var jExt = Path.GetExtension(selectedJustificationFile.Name);
+                var jPath = Path.Combine(uploadsPath, $"justification_{lp.Id}{jExt}");
+                using (var fs = new FileStream(jPath, FileMode.Create))
+                {
+                    await selectedJustificationFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(fs);
+                }
+                lp.HasJustificationAttachment = true;
+                DbContext.LessonPlans.Update(lp);
+                await DbContext.SaveChangesAsync();
+            }
+
+            // Reset Form
+            selectedLessonPlanFile = null;
+            selectedJustificationFile = null;
+            justificationText = "";
+            
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred during submission: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+}

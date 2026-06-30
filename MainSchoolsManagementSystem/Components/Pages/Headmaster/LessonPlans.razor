@@ -4,10 +4,12 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @inject MainSchoolsManagementSystem.Data.ApplicationDbContext DbContext
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using MainSchoolsManagementSystem.Data
+@using System.IO
 
 <PageTitle>Lesson Plans Review</PageTitle>
 
@@ -120,6 +122,24 @@
                     </div>
                 </div>
 
+                <!-- Lesson Plan File -->
+                <div>
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Lesson Plan File:</span>
+                    @if (lessonPlanUrls.TryGetValue(selectedPlan.Id, out var url))
+                    {
+                        <div style="margin-top: 0.25rem;">
+                            <a href="@url" target="_blank" class="btn-premium btn-secondary-custom" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.8rem; font-size: 0.85rem; text-decoration: none;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                View / Download Lesson Plan
+                            </a>
+                        </div>
+                    }
+                    else
+                    {
+                        <strong style="display: block; color: var(--danger); font-size: 0.9rem;">No file uploaded</strong>
+                    }
+                </div>
+
                 <!-- Lateness / Justification -->
                 @if (selectedPlan.IsLate)
                 {
@@ -128,9 +148,16 @@
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                             Lateness Justification
                         </div>
-                        <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-primary);">
+                        <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-primary); margin-bottom: 0.75rem;">
                             @(string.IsNullOrEmpty(selectedPlan.JustificationText) ? "No justification provided." : selectedPlan.JustificationText)
                         </p>
+                        @if (selectedPlan.HasJustificationAttachment && justificationUrls.TryGetValue(selectedPlan.Id, out var jUrl))
+                        {
+                            <a href="@jUrl" target="_blank" class="btn-premium btn-secondary-custom" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.8rem; font-size: 0.85rem; text-decoration: none;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                View / Download Attachment
+                            </a>
+                        }
                     </div>
                 }
 
@@ -151,12 +178,17 @@
                     }
                 </div>
             </div>
-            <div class="modal-footer-custom">
-                <button class="btn-premium btn-secondary-custom" @onclick="CloseReviewModal">Close</button>
-                @if (selectedPlan.Status == LessonPlanStatus.Pending)
-                {
-                    <button class="btn-premium" @onclick="SubmitReview">Submit Review & Approve</button>
-                }
+            <div class="modal-footer-custom" style="display: flex; justify-content: space-between;">
+                <div>
+                    <button class="btn-premium" style="background: var(--danger); border-color: var(--danger);" @onclick="DeleteSubmission" title="Delete duplicate or erroneous submission">Delete</button>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn-premium btn-secondary-custom" @onclick="CloseReviewModal">Close</button>
+                    @if (selectedPlan.Status == LessonPlanStatus.Pending)
+                    {
+                        <button class="btn-premium" @onclick="SubmitReview">Submit Review & Approve</button>
+                    }
+                </div>
             </div>
         </div>
     </div>
@@ -168,6 +200,8 @@
 
     private List<LessonPlan> pendingPlans = new();
     private List<LessonPlan> reviewedPlans = new();
+    private Dictionary<int, string> lessonPlanUrls = new();
+    private Dictionary<int, string> justificationUrls = new();
 
     private bool showReviewModal = false;
     private LessonPlan? selectedPlan;
@@ -201,6 +235,7 @@
 
         pendingPlans = allPlans.Where(p => p.Status == LessonPlanStatus.Pending).ToList();
         reviewedPlans = allPlans.Where(p => p.Status == LessonPlanStatus.Reviewed).ToList();
+        LoadFileUrls();
     }
 
     private void SetActiveTab(string tab)
@@ -244,6 +279,54 @@
             await LoadLessonPlans();
             CloseReviewModal();
             StateHasChanged();
+        }
+    }
+
+    private async Task DeleteSubmission()
+    {
+        if (selectedPlan != null)
+        {
+            DbContext.LessonPlans.Remove(selectedPlan);
+            await DbContext.SaveChangesAsync();
+            
+            var uploadsPath = Path.Combine(Env.WebRootPath, "uploads");
+            var matchingFiles = Directory.GetFiles(uploadsPath, $"*_{selectedPlan.Id}.*");
+            foreach(var f in matchingFiles) 
+            {
+               if(Path.GetFileName(f).StartsWith($"lessonplan_{selectedPlan.Id}.") || Path.GetFileName(f).StartsWith($"justification_{selectedPlan.Id}.")) 
+               {
+                   System.IO.File.Delete(f);
+               }
+            }
+
+            await LoadLessonPlans();
+            CloseReviewModal();
+            StateHasChanged();
+        }
+    }
+
+    private void LoadFileUrls()
+    {
+        lessonPlanUrls.Clear();
+        justificationUrls.Clear();
+        var uploadsPath = Path.Combine(Env.WebRootPath, "uploads");
+        if (Directory.Exists(uploadsPath))
+        {
+            var files = Directory.GetFiles(uploadsPath);
+            foreach (var file in files)
+            {
+                var fileName = Path.GetFileName(file);
+                if (fileName.StartsWith("lessonplan_"))
+                {
+                    var idStr = Path.GetFileNameWithoutExtension(fileName).Substring("lessonplan_".Length);
+                    if (int.TryParse(idStr, out int id)) lessonPlanUrls[id] = $"/uploads/{fileName}";
+                }
+                else if (fileName.StartsWith("justification_"))
+                {
+                    var idStr = Path.GetFileNameWithoutExtension(fileName).Substring("justification_".Length);
+                    if (int.TryParse(idStr, out int id)) justificationUrls[id] = $"/uploads/{fileName}";
+                }
+            }
         }
     }
 }

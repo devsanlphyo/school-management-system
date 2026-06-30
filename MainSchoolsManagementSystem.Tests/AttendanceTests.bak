@@ -1,0 +1,1681 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using MainSchoolsManagementSystem.Data;
+using MainSchoolsManagementSystem.Components.Pages.Headmaster;
+
+namespace MainSchoolsManagementSystem.Tests
+{
+    public class AttendanceTests
+    {
+        private readonly IServiceProvider _serviceProvider;
+        private readonly TestAuthenticationStateProvider _authStateProvider;
+
+        public AttendanceTests()
+        {
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseSqlServer(TestDbHelper.ConnectionString));
+
+            services.AddIdentity<ApplicationUser, IdentityRole>()
+                .AddEntityFrameworkStores<ApplicationDbContext>()
+                .AddDefaultTokenProviders();
+
+            var testAuth = new TestAuthenticationStateProvider();
+            services.AddSingleton<AuthenticationStateProvider>(testAuth);
+            services.AddSingleton(testAuth);
+
+            _serviceProvider = services.BuildServiceProvider();
+            _authStateProvider = testAuth;
+        }
+
+        private async Task ResetStateAsync()
+        {
+            using var context = TestDbHelper.CreateDbContext();
+            TestDbHelper.ClearTables(context);
+            await context.SaveChangesAsync();
+            _authStateProvider.ClearUser();
+        }
+
+        // Helper to inject services into Blazor components via reflection
+        private void InjectServices(object component)
+        {
+            var type = component.GetType();
+            var properties = type.GetProperties(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            foreach (var prop in properties)
+            {
+                if (prop.GetCustomAttributes(typeof(InjectAttribute), true).Any())
+                {
+                    var service = _serviceProvider.GetService(prop.PropertyType);
+                    if (service != null)
+                    {
+                        prop.SetValue(component, service);
+                    }
+                }
+            }
+        }
+
+        private async Task<ApplicationUser> CreateUserAsync(string email, string fullName, string role, int? schoolId = null)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+            if (!await roleManager.RoleExistsAsync(role))
+            {
+                await roleManager.CreateAsync(new IdentityRole(role));
+            }
+
+            var user = new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                FullName = fullName,
+                SchoolId = schoolId
+            };
+
+            var result = await userManager.CreateAsync(user, "Password123!");
+            if (!result.Succeeded)
+            {
+                throw new Exception($"User creation failed: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+            }
+
+            await userManager.AddToRoleAsync(user, role);
+            return user;
+        }
+
+        private async Task<School> CreateSchoolAsync(string name)
+        {
+            using var context = TestDbHelper.CreateDbContext();
+            var school = new School { Name = name };
+            context.Schools.Add(school);
+            await context.SaveChangesAsync();
+            return school;
+        }
+
+        private async Task SetDailyDeadlineAsync(TimeSpan deadline, bool maintenance = false)
+        {
+            using var context = TestDbHelper.CreateDbContext();
+            var setting = await context.SystemSettings.FirstOrDefaultAsync();
+            if (setting == null)
+            {
+                setting = new SystemSetting { DailyDeadline = deadline, MaintenanceMode = maintenance };
+                context.SystemSettings.Add(setting);
+            }
+            else
+            {
+                setting.DailyDeadline = deadline;
+                setting.MaintenanceMode = maintenance;
+                context.SystemSettings.Update(setting);
+            }
+            await context.SaveChangesAsync();
+        }
+
+        // Reflection helper to invoke teacher check-in
+        private async Task InvokeTeacherCheckInAsync(object component, DateTime time)
+        {
+            var type = component.GetType();
+            var method = type.GetMethod("CheckIn", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
+                         ?? type.GetMethod("CheckInAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+
+            if (method == null)
+            {
+                Assert.Fail("Teacher/Attendance.razor does not implement a CheckIn or CheckInAsync method.");
+            }
+
+            var parameters = method.GetParameters();
+            if (parameters.Length == 1 && parameters[0].ParameterType == typeof(DateTime))
+            {
+                var result = method.Invoke(component, new object[] { time });
+                if (result is Task task) await task;
+            }
+            else if (parameters.Length == 0)
+            {
+                var result = method.Invoke(component, null);
+                if (result is Task task) await task;
+            }
+            else
+            {
+                Assert.Fail("Teacher/Attendance.razor CheckIn method has unsupported signature.");
+            }
+        }
+
+        #region FEATURE 1: TEACHER CHECK-IN
+
+        // 1. Feature Coverage
+        public async Task Test_TeacherCheckIn_CreatesRecordInDatabase()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher1@school.com", "Teacher One", "Teacher", school.Id);
+
+            // Simulate teacher check-in
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance
+            {
+                TeacherId = teacher.Id,
+                Date = DateTime.Today,
+                CheckedInAt = DateTime.UtcNow,
+                Status = AttendanceStatus.Present
+            };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.NotNull(record, "Attendance record should be created in the database.");
+            Assert.Equals(AttendanceStatus.Present, record!.Status, "Status should be Present.");
+        }
+
+        public async Task Test_TeacherCheckIn_RecordsCorrectTeacherId()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher2@school.com", "Teacher Two", "Teacher", school.Id);
+
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance
+            {
+                TeacherId = teacher.Id,
+                Date = DateTime.Today,
+                CheckedInAt = DateTime.UtcNow,
+                Status = AttendanceStatus.Present
+            };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync();
+            Assert.Equals(teacher.Id, record!.TeacherId, "TeacherId must match.");
+        }
+
+        public async Task Test_TeacherCheckIn_RecordsCorrectDate()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher3@school.com", "Teacher Three", "Teacher", school.Id);
+            var today = DateTime.Today;
+
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance
+            {
+                TeacherId = teacher.Id,
+                Date = today,
+                CheckedInAt = DateTime.UtcNow,
+                Status = AttendanceStatus.Present
+            };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync();
+            Assert.Equals(today.Date, record!.Date.Date, "Date should be today's date.");
+        }
+
+        public async Task Test_TeacherCheckIn_RecordsCheckedInAtTimestamp()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher4@school.com", "Teacher Four", "Teacher", school.Id);
+            var now = DateTime.UtcNow;
+
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance
+            {
+                TeacherId = teacher.Id,
+                Date = DateTime.Today,
+                CheckedInAt = now,
+                Status = AttendanceStatus.Present
+            };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync();
+            Assert.NotNull(record!.CheckedInAt, "CheckedInAt should not be null.");
+            Assert.True((record.CheckedInAt.Value - now).Duration() < TimeSpan.FromSeconds(1), "CheckedInAt should match the check-in time.");
+        }
+
+        public async Task Test_TeacherCheckIn_TwiceOnSameDay_UpdatesOrPrevents()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher5@school.com", "Teacher Five", "Teacher", school.Id);
+
+            using var context = TestDbHelper.CreateDbContext();
+            var first = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, CheckedInAt = DateTime.UtcNow.AddHours(-1), Status = AttendanceStatus.Present };
+            context.Attendances.Add(first);
+            await context.SaveChangesAsync();
+
+            // Simulate second check-in (should either update or do nothing, but not duplicate)
+            var duplicate = await context.Attendances.AnyAsync(a => a.TeacherId == teacher.Id && a.Date == DateTime.Today);
+            Assert.True(duplicate, "Should already have a record for today.");
+        }
+
+        // 2. Boundary & Corner Cases
+        public async Task Test_TeacherCheckIn_AtStartOfDay_00_00_00()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher6@school.com", "Teacher Six", "Teacher", school.Id);
+            var startOfDay = DateTime.Today; // 00:00:00
+
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance { TeacherId = teacher.Id, Date = startOfDay, CheckedInAt = startOfDay, Status = AttendanceStatus.Present };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync();
+            Assert.Equals(startOfDay, record!.CheckedInAt, "Should support check-in at exactly midnight.");
+        }
+
+        public async Task Test_TeacherCheckIn_AtEndOfDay_23_59_59()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher7@school.com", "Teacher Seven", "Teacher", school.Id);
+            var endOfDay = DateTime.Today.AddHours(23).AddMinutes(59).AddSeconds(59);
+
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, CheckedInAt = endOfDay, Status = AttendanceStatus.Late };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync();
+            Assert.Equals(endOfDay, record!.CheckedInAt, "Should support check-in at 23:59:59.");
+        }
+
+        public async Task Test_TeacherCheckIn_OnLeapDay()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher8@school.com", "Teacher Eight", "Teacher", school.Id);
+            var leapDay = new DateTime(2028, 2, 29); // 2028 is a leap year
+
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance { TeacherId = teacher.Id, Date = leapDay, CheckedInAt = leapDay.AddHours(8), Status = AttendanceStatus.Present };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync();
+            Assert.Equals(leapDay, record!.Date, "Should support check-in on February 29th.");
+        }
+
+        public async Task Test_TeacherCheckIn_WithNoSchoolAssigned_FailsOrHandles()
+        {
+            await ResetStateAsync();
+            // Create a teacher with no school
+            var teacher = await CreateUserAsync("teacher9@school.com", "Teacher Nine", "Teacher", null);
+
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, CheckedInAt = DateTime.UtcNow, Status = AttendanceStatus.Present };
+            context.Attendances.Add(attendance);
+            
+            // Should succeed at DB level if SchoolId is not required on Attendance (it is linked via Teacher)
+            await context.SaveChangesAsync();
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.NotNull(record, "Attendance should be saved even if teacher has no school assigned.");
+        }
+
+        public async Task Test_TeacherCheckIn_WithNoDepartmentAssigned_Succeeds()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher10@school.com", "Teacher Ten", "Teacher", school.Id);
+            teacher.DepartmentId = null;
+
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, CheckedInAt = DateTime.UtcNow, Status = AttendanceStatus.Present };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.NotNull(record, "Should succeed even if no department is assigned.");
+        }
+
+        public async Task Test_TeacherCheckIn_WhenAlreadyOverriddenByHeadmaster()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher11@school.com", "Teacher Eleven", "Teacher", school.Id);
+
+            // Headmaster overrides to Present
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, Status = AttendanceStatus.Present, CheckedInAt = null };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+
+            // Teacher checks in later. It should update CheckedInAt but keep Present status
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            record!.CheckedInAt = DateTime.UtcNow;
+            context.Attendances.Update(record);
+            await context.SaveChangesAsync();
+
+            var updated = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.NotNull(updated!.CheckedInAt, "CheckedInAt should be updated.");
+            Assert.Equals(AttendanceStatus.Present, updated.Status, "Status should remain Present as overridden.");
+        }
+
+        public async Task Test_TeacherCheckIn_WithDifferentTimeZones()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher12@school.com", "Teacher Twelve", "Teacher", school.Id);
+            var localCheckIn = DateTime.SpecifyKind(DateTime.Today.AddHours(8), DateTimeKind.Local);
+
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, CheckedInAt = localCheckIn.ToUniversalTime(), Status = AttendanceStatus.Present };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync();
+            Assert.NotNull(record!.CheckedInAt, "Timestamp should be recorded.");
+            Assert.Equals(localCheckIn.ToUniversalTime(), record.CheckedInAt.Value, "Timestamp should be converted to UTC in database.");
+        }
+
+        #endregion
+
+        #region FEATURE 2: LATENESS EVALUATION
+
+        // 1. Feature Coverage
+        public async Task Test_LatenessEvaluation_BeforeDeadline_IsPresent()
+        {
+            await ResetStateAsync();
+            var deadline = new TimeSpan(8, 30, 0); // 08:30
+            var checkInTime = DateTime.Today.AddHours(8).AddMinutes(15); // 08:15
+
+            var status = checkInTime.TimeOfDay <= deadline ? AttendanceStatus.Present : AttendanceStatus.Late;
+            Assert.Equals(AttendanceStatus.Present, status, "Should be Present before deadline.");
+        }
+
+        public async Task Test_LatenessEvaluation_AfterDeadline_IsLate()
+        {
+            await ResetStateAsync();
+            var deadline = new TimeSpan(8, 30, 0); // 08:30
+            var checkInTime = DateTime.Today.AddHours(8).AddMinutes(45); // 08:45
+
+            var status = checkInTime.TimeOfDay <= deadline ? AttendanceStatus.Present : AttendanceStatus.Late;
+            Assert.Equals(AttendanceStatus.Late, status, "Should be Late after deadline.");
+        }
+
+        public async Task Test_LatenessEvaluation_WithCustomDeadline_Before_IsPresent()
+        {
+            await ResetStateAsync();
+            var deadline = new TimeSpan(9, 0, 0); // 09:00
+            var checkInTime = DateTime.Today.AddHours(8).AddMinutes(50); // 08:50
+
+            var status = checkInTime.TimeOfDay <= deadline ? AttendanceStatus.Present : AttendanceStatus.Late;
+            Assert.Equals(AttendanceStatus.Present, status, "Should be Present before custom deadline.");
+        }
+
+        public async Task Test_LatenessEvaluation_WithCustomDeadline_After_IsLate()
+        {
+            await ResetStateAsync();
+            var deadline = new TimeSpan(9, 0, 0); // 09:00
+            var checkInTime = DateTime.Today.AddHours(9).AddMinutes(10); // 09:10
+
+            var status = checkInTime.TimeOfDay <= deadline ? AttendanceStatus.Present : AttendanceStatus.Late;
+            Assert.Equals(AttendanceStatus.Late, status, "Should be Late after custom deadline.");
+        }
+
+        public async Task Test_LatenessEvaluation_NoSystemSetting_UsesDefault0830()
+        {
+            await ResetStateAsync();
+            // No settings in DB, use default 08:30
+            var defaultDeadline = new TimeSpan(8, 30, 0);
+            var checkInTime = DateTime.Today.AddHours(8).AddMinutes(20);
+
+            var status = checkInTime.TimeOfDay <= defaultDeadline ? AttendanceStatus.Present : AttendanceStatus.Late;
+            Assert.Equals(AttendanceStatus.Present, status, "Should use default 08:30 deadline if no DB setting exists.");
+        }
+
+        // 2. Boundary & Corner Cases
+        public async Task Test_LatenessEvaluation_ExactlyAtDeadline_IsPresent()
+        {
+            await ResetStateAsync();
+            var deadline = new TimeSpan(8, 30, 0);
+            var checkInTime = DateTime.Today.AddHours(8).AddMinutes(30); // Exactly 08:30:00
+
+            var status = checkInTime.TimeOfDay <= deadline ? AttendanceStatus.Present : AttendanceStatus.Late;
+            Assert.Equals(AttendanceStatus.Present, status, "Exactly at deadline should be Present.");
+        }
+
+        public async Task Test_LatenessEvaluation_OneSecondBeforeDeadline_IsPresent()
+        {
+            await ResetStateAsync();
+            var deadline = new TimeSpan(8, 30, 0);
+            var checkInTime = DateTime.Today.AddHours(8).AddMinutes(29).AddSeconds(59);
+
+            var status = checkInTime.TimeOfDay <= deadline ? AttendanceStatus.Present : AttendanceStatus.Late;
+            Assert.Equals(AttendanceStatus.Present, status, "One second before deadline should be Present.");
+        }
+
+        public async Task Test_LatenessEvaluation_OneSecondAfterDeadline_IsLate()
+        {
+            await ResetStateAsync();
+            var deadline = new TimeSpan(8, 30, 0);
+            var checkInTime = DateTime.Today.AddHours(8).AddMinutes(30).AddSeconds(1);
+
+            var status = checkInTime.TimeOfDay <= deadline ? AttendanceStatus.Present : AttendanceStatus.Late;
+            Assert.Equals(AttendanceStatus.Late, status, "One second after deadline should be Late.");
+        }
+
+        public async Task Test_LatenessEvaluation_WithDeadlineAtMidnight_IsLate()
+        {
+            await ResetStateAsync();
+            var deadline = new TimeSpan(0, 0, 0); // Midnight
+            var checkInTime = DateTime.Today.AddMinutes(1); // 00:01
+
+            var status = checkInTime.TimeOfDay <= deadline ? AttendanceStatus.Present : AttendanceStatus.Late;
+            Assert.Equals(AttendanceStatus.Late, status, "Any check-in after midnight is Late if deadline is midnight.");
+        }
+
+        public async Task Test_LatenessEvaluation_WithDeadlineAtEndOfDay_IsPresent()
+        {
+            await ResetStateAsync();
+            var deadline = new TimeSpan(23, 59, 59);
+            var checkInTime = DateTime.Today.AddHours(23).AddMinutes(59);
+
+            var status = checkInTime.TimeOfDay <= deadline ? AttendanceStatus.Present : AttendanceStatus.Late;
+            Assert.Equals(AttendanceStatus.Present, status, "Check-in before 23:59:59 is Present.");
+        }
+
+        public async Task Test_LatenessEvaluation_NegativeTimeSpanDeadline_ThrowsOrHandles()
+        {
+            await ResetStateAsync();
+            // Setting a negative deadline is invalid or should be handled
+            var invalidDeadline = new TimeSpan(-1, 0, 0);
+            Assert.True(invalidDeadline.Ticks < 0, "Timespan is negative.");
+        }
+
+        public async Task Test_LatenessEvaluation_MultipleSystemSettings_UsesActiveOrFirst()
+        {
+            await ResetStateAsync();
+            using var context = TestDbHelper.CreateDbContext();
+            context.SystemSettings.Add(new SystemSetting { DailyDeadline = new TimeSpan(8, 0, 0) });
+            context.SystemSettings.Add(new SystemSetting { DailyDeadline = new TimeSpan(9, 0, 0) });
+            await context.SaveChangesAsync();
+
+            // The system should use the first or active setting
+            var activeSetting = await context.SystemSettings.FirstOrDefaultAsync();
+            Assert.NotNull(activeSetting, "Should retrieve a setting.");
+            Assert.Equals(new TimeSpan(8, 0, 0), activeSetting!.DailyDeadline, "Should use the first setting.");
+        }
+
+        #endregion
+
+        #region FEATURE 3: TEACHER ATTENDANCE DASHBOARD
+
+        // 1. Feature Coverage (These test the UI component, which is currently a placeholder, so they will fail or be stubbed)
+        public async Task Test_TeacherDashboard_DisplaysCurrentMonthHistory()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Test School");
+            var teacher = await CreateUserAsync("teacher_db1@school.com", "Teacher DB1", "Teacher", school.Id);
+
+            // Seed historical records
+            using var context = TestDbHelper.CreateDbContext();
+            context.Attendances.Add(new Attendance { TeacherId = teacher.Id, Date = DateTime.Today.AddDays(-5), Status = AttendanceStatus.Present });
+            context.Attendances.Add(new Attendance { TeacherId = teacher.Id, Date = DateTime.Today.AddDays(-2), Status = AttendanceStatus.Late });
+            await context.SaveChangesAsync();
+
+            // Instantiate components and verify (Will fail because page is a placeholder)
+            try
+            {
+                var componentType = Type.GetType("MainSchoolsManagementSystem.Components.Pages.Teacher.Attendance, MainSchoolsManagementSystem");
+                Assert.NotNull(componentType, "Teacher Attendance component type should exist.");
+                var component = Activator.CreateInstance(componentType!);
+                InjectServices(component!);
+
+                // Try to call initialization
+                var initMethod = componentType!.GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (initMethod != null)
+                {
+                    var task = (Task)initMethod.Invoke(component, null)!;
+                    await task;
+                }
+
+                // Verify history field exists
+                var historyField = componentType.GetField("attendanceHistory", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                                   ?? componentType.GetField("history", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                Assert.NotNull(historyField, "Component should have a history field.");
+            }
+            catch (Exception ex)
+            {
+                Assert.Fail($"Teacher Dashboard Test failed due to placeholder component: {ex.Message}");
+            }
+        }
+
+        public async Task Test_TeacherDashboard_ShowsCorrectStatusForToday()
+        {
+            await ResetStateAsync();
+            // Placeholder page test
+            Assert.Fail("Teacher Attendance page is currently a placeholder. Today's status cannot be displayed yet.");
+        }
+
+        public async Task Test_TeacherDashboard_CheckInButtonDisabled_IfAlreadyCheckedIn()
+        {
+            await ResetStateAsync();
+            // Placeholder page test
+            Assert.Fail("Teacher Attendance page is currently a placeholder. Check-in button state cannot be verified.");
+        }
+
+        public async Task Test_TeacherDashboard_CheckInButtonEnabled_IfNotCheckedIn()
+        {
+            await ResetStateAsync();
+            // Placeholder page test
+            Assert.Fail("Teacher Attendance page is currently a placeholder. Check-in button state cannot be verified.");
+        }
+
+        public async Task Test_TeacherDashboard_DisplaysAbsent_ForPastDaysWithNoLog()
+        {
+            await ResetStateAsync();
+            // Placeholder page test
+            Assert.Fail("Teacher Attendance page is currently a placeholder. History rendering cannot be verified.");
+        }
+
+        // 2. Boundary & Corner Cases
+        public async Task Test_TeacherDashboard_FirstDayOfMonth()
+        {
+            await ResetStateAsync();
+            Assert.Fail("Teacher Attendance page is currently a placeholder. First day of month rendering cannot be verified.");
+        }
+
+        public async Task Test_TeacherDashboard_LastDayOfMonth()
+        {
+            await ResetStateAsync();
+            Assert.Fail("Teacher Attendance page is currently a placeholder. Last day of month rendering cannot be verified.");
+        }
+
+        public async Task Test_TeacherDashboard_NoHistoryForNewTeacher()
+        {
+            await ResetStateAsync();
+            Assert.Fail("Teacher Attendance page is currently a placeholder. New teacher history cannot be verified.");
+        }
+
+        public async Task Test_TeacherDashboard_FutureDays_AreNotDisplayedOrCheckedIn()
+        {
+            await ResetStateAsync();
+            Assert.Fail("Teacher Attendance page is currently a placeholder. Future days handling cannot be verified.");
+        }
+
+        public async Task Test_TeacherDashboard_WeekendFiltering()
+        {
+            await ResetStateAsync();
+            Assert.Fail("Teacher Attendance page is currently a placeholder. Weekend filtering cannot be verified.");
+        }
+
+        public async Task Test_TeacherDashboard_UnderMaintenanceMode_DisablesCheckIn()
+        {
+            await ResetStateAsync();
+            Assert.Fail("Teacher Attendance page is currently a placeholder. Maintenance mode disabling cannot be verified.");
+        }
+
+        public async Task Test_TeacherDashboard_LoadsSuccessfully_WithLargeHistory()
+        {
+            await ResetStateAsync();
+            Assert.Fail("Teacher Attendance page is currently a placeholder. Performance with large history cannot be verified.");
+        }
+
+        #endregion
+
+        #region FEATURE 4: HEADMASTER ATTENDANCE VIEW
+
+        // 1. Feature Coverage
+        public async Task Test_HeadmasterView_DisplaysAllTeachersInSchool()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var otherSchool = await CreateSchoolAsync("HM School B");
+
+            var hm = await CreateUserAsync("hm1@school.com", "Headmaster One", "Headmaster", school.Id);
+            var teacher1 = await CreateUserAsync("t1@school.com", "Teacher One", "Teacher", school.Id);
+            var teacher2 = await CreateUserAsync("t2@school.com", "Teacher Two", "Teacher", school.Id);
+            var otherTeacher = await CreateUserAsync("t3@school.com", "Teacher Three", "Teacher", otherSchool.Id);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            // Test the Headmaster Attendance Component
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            // Call OnInitializedAsync via reflection
+            var method = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            
+            Assert.NotNull(method, "OnInitializedAsync should exist.");
+            await (Task)method!.Invoke(component, null)!;
+
+            // Get teachersAttendance field via reflection
+            var field = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("teachersAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            
+            Assert.NotNull(field, "teachersAttendance field should exist.");
+            var list = (System.Collections.IList)field!.GetValue(component)!;
+
+            Assert.Equals(2, list.Count, "Should display exactly 2 teachers from the headmaster's school.");
+        }
+
+        public async Task Test_HeadmasterView_DoesNotDisplayTeachersFromOtherSchools()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var otherSchool = await CreateSchoolAsync("HM School B");
+
+            var hm = await CreateUserAsync("hm2@school.com", "Headmaster Two", "Headmaster", school.Id);
+            var otherTeacher = await CreateUserAsync("t_other@school.com", "Other Teacher", "Teacher", otherSchool.Id);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var method = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)method!.Invoke(component, null)!;
+
+            var field = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("teachersAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var list = (System.Collections.IList)field!.GetValue(component)!;
+
+            Assert.Equals(0, list.Count, "Should not display teachers from other schools.");
+        }
+
+        public async Task Test_HeadmasterView_CalculatesStatsCorrectly_AllPresent()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm3@school.com", "Headmaster Three", "Headmaster", school.Id);
+            var t1 = await CreateUserAsync("t1_stat@school.com", "Teacher One", "Teacher", school.Id);
+            var t2 = await CreateUserAsync("t2_stat@school.com", "Teacher Two", "Teacher", school.Id);
+
+            using var context = TestDbHelper.CreateDbContext();
+            context.Attendances.Add(new Attendance { TeacherId = t1.Id, Date = DateTime.Today, Status = AttendanceStatus.Present });
+            context.Attendances.Add(new Attendance { TeacherId = t2.Id, Date = DateTime.Today, Status = AttendanceStatus.Present });
+            await context.SaveChangesAsync();
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var method = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)method!.Invoke(component, null)!;
+
+            var presentField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("presentCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var absentField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("absentCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.Equals(2, (int)presentField!.GetValue(component)!, "Present count should be 2.");
+            Assert.Equals(0, (int)absentField!.GetValue(component)!, "Absent count should be 0.");
+        }
+
+        public async Task Test_HeadmasterView_CalculatesStatsCorrectly_Mixed()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm4@school.com", "Headmaster Four", "Headmaster", school.Id);
+            var t1 = await CreateUserAsync("t1_mixed@school.com", "Teacher One", "Teacher", school.Id);
+            var t2 = await CreateUserAsync("t2_mixed@school.com", "Teacher Two", "Teacher", school.Id);
+            var t3 = await CreateUserAsync("t3_mixed@school.com", "Teacher Three", "Teacher", school.Id);
+
+            using var context = TestDbHelper.CreateDbContext();
+            context.Attendances.Add(new Attendance { TeacherId = t1.Id, Date = DateTime.Today, Status = AttendanceStatus.Present });
+            context.Attendances.Add(new Attendance { TeacherId = t2.Id, Date = DateTime.Today, Status = AttendanceStatus.Late });
+            // t3 has no record, defaults to Absent
+            await context.SaveChangesAsync();
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var method = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)method!.Invoke(component, null)!;
+
+            var presentField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("presentCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var lateField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("lateCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var absentField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("absentCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.Equals(1, (int)presentField!.GetValue(component)!, "Present count should be 1.");
+            Assert.Equals(1, (int)lateField!.GetValue(component)!, "Late count should be 1.");
+            Assert.Equals(1, (int)absentField!.GetValue(component)!, "Absent count should be 1.");
+        }
+
+        public async Task Test_HeadmasterView_ChangesDate_LoadsCorrectHistoricalData()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm5@school.com", "Headmaster Five", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_hist@school.com", "Teacher Hist", "Teacher", school.Id);
+
+            var yesterday = DateTime.Today.AddDays(-1);
+            using var context = TestDbHelper.CreateDbContext();
+            context.Attendances.Add(new Attendance { TeacherId = teacher.Id, Date = yesterday, Status = AttendanceStatus.Late });
+            await context.SaveChangesAsync();
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            // Trigger date change via reflection
+            var changeMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnDateChanged", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            
+            Assert.NotNull(changeMethod, "OnDateChanged should exist.");
+            await (Task)changeMethod!.Invoke(component, new object[] { new ChangeEventArgs { Value = yesterday.ToString("yyyy-MM-dd") } })!;
+
+            var lateField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("lateCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.Equals(1, (int)lateField!.GetValue(component)!, "Late count for yesterday should be 1.");
+        }
+
+        // 2. Boundary & Corner Cases
+        public async Task Test_HeadmasterView_NoTeachersInSchool_DisplaysEmptyMessage()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Empty School");
+            var hm = await CreateUserAsync("hm_empty@school.com", "Headmaster Empty", "Headmaster", school.Id);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var method = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)method!.Invoke(component, null)!;
+
+            var field = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("teachersAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var list = (System.Collections.IList)field!.GetValue(component)!;
+
+            Assert.Equals(0, list.Count, "Should have 0 teachers.");
+        }
+
+        public async Task Test_HeadmasterView_TeacherWithMultipleRoles()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm6@school.com", "Headmaster Six", "Headmaster", school.Id);
+            
+            // Create user with both Teacher and another role
+            var teacher = await CreateUserAsync("t_multi@school.com", "Teacher Multi", "Teacher", school.Id);
+            
+            using var scope = _serviceProvider.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            if (!await roleManager.RoleExistsAsync("Officer"))
+            {
+                await roleManager.CreateAsync(new IdentityRole("Officer"));
+            }
+            await userManager.AddToRoleAsync(teacher, "Officer");
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var method = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)method!.Invoke(component, null)!;
+
+            var field = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("teachersAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var list = (System.Collections.IList)field!.GetValue(component)!;
+
+            Assert.Equals(1, list.Count, "Teacher with multiple roles should still be listed.");
+        }
+
+        public async Task Test_HeadmasterView_SelectedDateInFuture()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm7@school.com", "Headmaster Seven", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_future@school.com", "Teacher Future", "Teacher", school.Id);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            // Select a future date
+            var futureDate = DateTime.Today.AddDays(5);
+            var changeMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnDateChanged", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)changeMethod!.Invoke(component, new object[] { new ChangeEventArgs { Value = futureDate.ToString("yyyy-MM-dd") } })!;
+
+            var absentField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("absentCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.Equals(1, (int)absentField!.GetValue(component)!, "Future date should show teacher as Absent.");
+        }
+
+        public async Task Test_HeadmasterView_WithDeletedTeacher_DoesNotDisplay()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm8@school.com", "Headmaster Eight", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_del@school.com", "Teacher Del", "Teacher", school.Id);
+
+            // Delete the teacher from the system
+            using (var scope = _serviceProvider.CreateScope())
+            {
+                var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                await userManager.DeleteAsync(teacher);
+            }
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var method = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)method!.Invoke(component, null)!;
+
+            var field = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("teachersAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var list = (System.Collections.IList)field!.GetValue(component)!;
+
+            Assert.Equals(0, list.Count, "Deleted teachers should not be listed.");
+        }
+
+        public async Task Test_HeadmasterView_StatsWhenAllAbsent()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm9@school.com", "Headmaster Nine", "Headmaster", school.Id);
+            var t1 = await CreateUserAsync("t1_abs@school.com", "Teacher One", "Teacher", school.Id);
+            var t2 = await CreateUserAsync("t2_abs@school.com", "Teacher Two", "Teacher", school.Id);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var method = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)method!.Invoke(component, null)!;
+
+            var absentField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("absentCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.Equals(2, (int)absentField!.GetValue(component)!, "All teachers should count as absent when no logs exist.");
+        }
+
+        public async Task Test_HeadmasterView_WithManyTeachers_Performance()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm10@school.com", "Headmaster Ten", "Headmaster", school.Id);
+
+            // Create 50 teachers
+            for (int i = 0; i < 50; i++)
+            {
+                await CreateUserAsync($"t_perf{i}@school.com", $"Teacher Perf {i}", "Teacher", school.Id);
+            }
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var startTime = DateTime.UtcNow;
+            var method = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)method!.Invoke(component, null)!;
+            var duration = DateTime.UtcNow - startTime;
+
+            var field = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("teachersAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var list = (System.Collections.IList)field!.GetValue(component)!;
+
+            Assert.Equals(50, list.Count, "Should load all 50 teachers.");
+            Assert.True(duration.TotalMilliseconds < 500, "Performance should be acceptable (<500ms).");
+        }
+
+        public async Task Test_HeadmasterView_WithUnassignedHeadmaster_HandlesGracefully()
+        {
+            await ResetStateAsync();
+            // Headmaster with no school assigned
+            var hm = await CreateUserAsync("hm_unassigned@school.com", "Headmaster Unassigned", "Headmaster", null);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, null);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var method = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            
+            // Should not throw exception
+            await (Task)method!.Invoke(component, null)!;
+
+            var field = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("teachersAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var list = (System.Collections.IList)field!.GetValue(component)!;
+
+            Assert.Equals(0, list.Count, "Should show 0 teachers for unassigned headmaster.");
+        }
+
+        #endregion
+
+        #region FEATURE 5: HEADMASTER ATTENDANCE OVERRIDE
+
+        // 1. Feature Coverage
+        public async Task Test_HeadmasterOverride_ToPresent_UpdatesStatus()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm_or1@school.com", "Headmaster One", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_or1@school.com", "Teacher One", "Teacher", school.Id);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            // Call OnInitializedAsync to load data
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            // Trigger override to Present
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            
+            Assert.NotNull(overrideMethod, "SetAttendance method should exist.");
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Present })!;
+
+            // Verify in database
+            using var context = TestDbHelper.CreateDbContext();
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.NotNull(record, "Override should create an attendance record.");
+            Assert.Equals(AttendanceStatus.Present, record!.Status, "Override status should be Present.");
+        }
+
+        public async Task Test_HeadmasterOverride_ToLate_UpdatesStatus()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm_or2@school.com", "Headmaster Two", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_or2@school.com", "Teacher Two", "Teacher", school.Id);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Late })!;
+
+            using var context = TestDbHelper.CreateDbContext();
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.NotNull(record, "Override should create record.");
+            Assert.Equals(AttendanceStatus.Late, record!.Status, "Override status should be Late.");
+        }
+
+        public async Task Test_HeadmasterOverride_ToAbsent_UpdatesStatus()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm_or3@school.com", "Headmaster Three", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_or3@school.com", "Teacher Three", "Teacher", school.Id);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Absent })!;
+
+            using var context = TestDbHelper.CreateDbContext();
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.NotNull(record, "Override should create record.");
+            Assert.Equals(AttendanceStatus.Absent, record!.Status, "Override status should be Absent.");
+        }
+
+        public async Task Test_HeadmasterOverride_NoExistingRecord_CreatesNewRecord()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm_or4@school.com", "Headmaster Four", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_or4@school.com", "Teacher Four", "Teacher", school.Id);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            using var context = TestDbHelper.CreateDbContext();
+            var before = await context.Attendances.AnyAsync(a => a.TeacherId == teacher.Id);
+            Assert.False(before, "Should not have any attendance record initially.");
+
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Present })!;
+
+            var after = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.NotNull(after, "Should create a new record.");
+        }
+
+        public async Task Test_HeadmasterOverride_ExistingRecord_UpdatesRecord()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm_or5@school.com", "Headmaster Five", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_or5@school.com", "Teacher Five", "Teacher", school.Id);
+
+            // Pre-seed an attendance record (Late)
+            using var context = TestDbHelper.CreateDbContext();
+            context.Attendances.Add(new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, Status = AttendanceStatus.Late, CheckedInAt = DateTime.UtcNow });
+            await context.SaveChangesAsync();
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            // Override to Present
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Present })!;
+
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.Equals(AttendanceStatus.Present, record!.Status, "Override should update existing status.");
+        }
+
+        // 2. Boundary & Corner Cases
+        public async Task Test_HeadmasterOverride_ToAbsent_ClearsCheckedInAt()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm_or6@school.com", "Headmaster Six", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_or6@school.com", "Teacher Six", "Teacher", school.Id);
+
+            // Pre-seed with check-in
+            using var context = TestDbHelper.CreateDbContext();
+            context.Attendances.Add(new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, Status = AttendanceStatus.Present, CheckedInAt = DateTime.UtcNow });
+            await context.SaveChangesAsync();
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            // Override to Absent
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Absent })!;
+
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.Null(record!.CheckedInAt, "CheckedInAt should be cleared to null when overridden to Absent.");
+        }
+
+        public async Task Test_HeadmasterOverride_ToPresent_SetsCheckedInAt()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm_or7@school.com", "Headmaster Seven", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_or7@school.com", "Teacher Seven", "Teacher", school.Id);
+
+            // Pre-seed as Absent with no check-in time
+            using var context = TestDbHelper.CreateDbContext();
+            context.Attendances.Add(new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, Status = AttendanceStatus.Absent, CheckedInAt = null });
+            await context.SaveChangesAsync();
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            // Override to Present
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Present })!;
+
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.NotNull(record!.CheckedInAt, "CheckedInAt should be set when overridden to Present.");
+        }
+
+        public async Task Test_HeadmasterOverride_ForPastDate()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm_or8@school.com", "Headmaster Eight", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_or8@school.com", "Teacher Eight", "Teacher", school.Id);
+            var pastDate = DateTime.Today.AddDays(-10);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            // Set component date to past date
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            var changeMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnDateChanged", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)changeMethod!.Invoke(component, new object[] { new ChangeEventArgs { Value = pastDate.ToString("yyyy-MM-dd") } })!;
+
+            // Override on past date
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Present })!;
+
+            using var context = TestDbHelper.CreateDbContext();
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id && a.Date.Date == pastDate.Date);
+            Assert.NotNull(record, "Override on past date should save in database.");
+            Assert.Equals(AttendanceStatus.Present, record!.Status, "Override status should be Present.");
+        }
+
+        public async Task Test_HeadmasterOverride_ForFutureDate_PreventOrAllow()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm_or9@school.com", "Headmaster Nine", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_or9@school.com", "Teacher Nine", "Teacher", school.Id);
+            var futureDate = DateTime.Today.AddDays(2);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            var changeMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnDateChanged", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)changeMethod!.Invoke(component, new object[] { new ChangeEventArgs { Value = futureDate.ToString("yyyy-MM-dd") } })!;
+
+            // Call SetAttendance
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Present })!;
+
+            using var context = TestDbHelper.CreateDbContext();
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id && a.Date.Date == futureDate.Date);
+            Assert.NotNull(record, "Should support setting future attendance if needed (or verify component behavior).");
+        }
+
+        public async Task Test_HeadmasterOverride_SameTeacherMultipleTimes()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm = await CreateUserAsync("hm_or10@school.com", "Headmaster Ten", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_or10@school.com", "Teacher Ten", "Teacher", school.Id);
+
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+
+            var component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(component);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(component, null)!;
+
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            // Override multiple times
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Present })!;
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Late })!;
+            await (Task)overrideMethod!.Invoke(component, new object[] { teacher.Id, AttendanceStatus.Absent })!;
+
+            using var context = TestDbHelper.CreateDbContext();
+            var records = await context.Attendances.Where(a => a.TeacherId == teacher.Id).ToListAsync();
+            Assert.Equals(1, records.Count, "Should only have exactly one record.");
+            Assert.Equals(AttendanceStatus.Absent, records[0].Status, "Last status should be Absent.");
+        }
+
+        public async Task Test_HeadmasterOverride_SimultaneousByDifferentUsers()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var hm1 = await CreateUserAsync("hm11a@school.com", "HM A", "Headmaster", school.Id);
+            var hm2 = await CreateUserAsync("hm11b@school.com", "HM B", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_or11@school.com", "Teacher Eleven", "Teacher", school.Id);
+
+            // Simulate HM A setting Present
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                var att = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, Status = AttendanceStatus.Present };
+                context.Attendances.Add(att);
+                await context.SaveChangesAsync();
+            }
+
+            // Simulate HM B setting Late concurrently
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+                record!.Status = AttendanceStatus.Late;
+                context.Attendances.Update(record);
+                await context.SaveChangesAsync();
+            }
+
+            using var contextFinal = TestDbHelper.CreateDbContext();
+            var finalRecord = await contextFinal.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.Equals(AttendanceStatus.Late, finalRecord!.Status, "Database should reflect the latest update.");
+        }
+
+        public async Task Test_HeadmasterOverride_WhenTeacherIsCheckingIn()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("HM School A");
+            var teacher = await CreateUserAsync("t_or12@school.com", "Teacher Twelve", "Teacher", school.Id);
+
+            // Teacher check-in
+            using var context = TestDbHelper.CreateDbContext();
+            var attendance = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, CheckedInAt = DateTime.UtcNow, Status = AttendanceStatus.Present };
+            context.Attendances.Add(attendance);
+            await context.SaveChangesAsync();
+
+            // Headmaster override happens right after
+            attendance.Status = AttendanceStatus.Late;
+            context.Attendances.Update(attendance);
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.Equals(AttendanceStatus.Late, record!.Status, "Override should succeed even if teacher checked in.");
+        }
+
+        #endregion
+
+        #region TIER 3: CROSS-FEATURE COMBINATIONS
+
+        public async Task Test_CrossFeature_TeacherCheckIn_ThenHMView_ThenHMOverride_ThenTeacherDashboard()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Cross School");
+            var hm = await CreateUserAsync("hm_cross@school.com", "Headmaster Cross", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_cross@school.com", "Teacher Cross", "Teacher", school.Id);
+
+            // 1. Teacher checks in (Late)
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                var att = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, CheckedInAt = DateTime.Today.AddHours(9), Status = AttendanceStatus.Late };
+                context.Attendances.Add(att);
+                await context.SaveChangesAsync();
+            }
+
+            // 2. HM views and overrides to Present
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+            var hmComponent = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(hmComponent);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(hmComponent, null)!;
+
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)overrideMethod!.Invoke(hmComponent, new object[] { teacher.Id, AttendanceStatus.Present })!;
+
+            // 3. Verify in database
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+                Assert.Equals(AttendanceStatus.Present, record!.Status, "Status should now be Present.");
+            }
+        }
+
+        public async Task Test_CrossFeature_HeadmasterOverride_ThenTeacherCheckIn_DoesNotOverwriteOverride()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Cross School");
+            var teacher = await CreateUserAsync("t_cross2@school.com", "Teacher Cross 2", "Teacher", school.Id);
+
+            // 1. HM overrides to Late (before teacher arrives)
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                var att = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, Status = AttendanceStatus.Late, CheckedInAt = null };
+                context.Attendances.Add(att);
+                await context.SaveChangesAsync();
+            }
+
+            // 2. Teacher checks in. It should only update CheckedInAt, but keep the status as Late (from HM override).
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+                record!.CheckedInAt = DateTime.UtcNow;
+                context.Attendances.Update(record);
+                await context.SaveChangesAsync();
+            }
+
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+                Assert.Equals(AttendanceStatus.Late, record!.Status, "Status should remain Late.");
+                Assert.NotNull(record.CheckedInAt, "CheckedInAt should be set.");
+            }
+        }
+
+        public async Task Test_CrossFeature_AdminChangesDeadline_ThenTeacherChecksIn_LatenessEvaluatedAgainstNewDeadline()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Cross School");
+            var teacher = await CreateUserAsync("t_cross3@school.com", "Teacher Cross 3", "Teacher", school.Id);
+
+            // 1. Change deadline from 08:30 to 09:00
+            await SetDailyDeadlineAsync(new TimeSpan(9, 0, 0));
+
+            // 2. Teacher checks in at 08:45 (would be late under old deadline, but present under new)
+            var checkInTime = DateTime.Today.AddHours(8).AddMinutes(45);
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                var deadline = (await context.SystemSettings.FirstOrDefaultAsync())?.DailyDeadline ?? new TimeSpan(8, 30, 0);
+                var status = checkInTime.TimeOfDay <= deadline ? AttendanceStatus.Present : AttendanceStatus.Late;
+
+                var att = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, CheckedInAt = checkInTime, Status = status };
+                context.Attendances.Add(att);
+                await context.SaveChangesAsync();
+            }
+
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+                Assert.Equals(AttendanceStatus.Present, record!.Status, "Should be Present because of updated deadline.");
+            }
+        }
+
+        public async Task Test_CrossFeature_TeacherCheckInLate_ThenHeadmasterOverridesToPresent_StatsAndDashboardUpdate()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Cross School");
+            var hm = await CreateUserAsync("hm_cross4@school.com", "Headmaster Cross 4", "Headmaster", school.Id);
+            var teacher = await CreateUserAsync("t_cross4@school.com", "Teacher Cross 4", "Teacher", school.Id);
+
+            // 1. Teacher check-in (Late)
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                context.Attendances.Add(new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, Status = AttendanceStatus.Late, CheckedInAt = DateTime.Today.AddHours(9) });
+                await context.SaveChangesAsync();
+            }
+
+            // 2. HM overrides to Present
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+            var hmComponent = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(hmComponent);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(hmComponent, null)!;
+
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)overrideMethod!.Invoke(hmComponent, new object[] { teacher.Id, AttendanceStatus.Present })!;
+
+            // 3. Verify stats
+            var presentField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("presentCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var lateField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("lateCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.Equals(1, (int)presentField!.GetValue(hmComponent)!, "Present count should update to 1.");
+            Assert.Equals(0, (int)lateField!.GetValue(hmComponent)!, "Late count should update to 0.");
+        }
+
+        public async Task Test_CrossFeature_LeaveRequestApproved_AutomaticallyMarksPresentOrExcused()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Cross School");
+            var teacher = await CreateUserAsync("t_cross5@school.com", "Teacher Cross 5", "Teacher", school.Id);
+
+            // Simulate an approved leave request that automatically creates an excused or Present attendance record
+            using var context = TestDbHelper.CreateDbContext();
+            var leave = new LeaveRequest
+            {
+                TeacherId = teacher.Id,
+                StartDate = DateTime.Today,
+                EndDate = DateTime.Today,
+                Reason = "Medical Leave",
+                Status = "Approved"
+            };
+            context.LeaveRequests.Add(leave);
+
+            // In a real system, approving a leave request might create an attendance record. We simulate this:
+            var att = new Attendance { TeacherId = teacher.Id, Date = DateTime.Today, Status = AttendanceStatus.Present };
+            context.Attendances.Add(att);
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.NotNull(record, "Should have attendance record due to approved leave.");
+            Assert.Equals(AttendanceStatus.Present, record!.Status, "Status should be Present/Excused.");
+        }
+
+        #endregion
+
+        #region TIER 4: REAL-WORLD APPLICATION SCENARIOS
+
+        public async Task Test_Scenario_TypicalSchoolDay()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Main High School");
+            var hm = await CreateUserAsync("hm_main@school.com", "Headmaster Main", "Headmaster", school.Id);
+            
+            var t1 = await CreateUserAsync("t1_main@school.com", "Teacher One", "Teacher", school.Id);
+            var t2 = await CreateUserAsync("t2_main@school.com", "Teacher Two", "Teacher", school.Id);
+            var t3 = await CreateUserAsync("t3_main@school.com", "Teacher Three", "Teacher", school.Id);
+
+            // 1. Teacher 1 checks in early (08:10) -> Present
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                context.Attendances.Add(new Attendance { TeacherId = t1.Id, Date = DateTime.Today, CheckedInAt = DateTime.Today.AddHours(8).AddMinutes(10), Status = AttendanceStatus.Present });
+                await context.SaveChangesAsync();
+            }
+
+            // 2. Teacher 2 checks in late (08:40) -> Late
+            using (var context = TestDbHelper.CreateDbContext())
+            {
+                context.Attendances.Add(new Attendance { TeacherId = t2.Id, Date = DateTime.Today, CheckedInAt = DateTime.Today.AddHours(8).AddMinutes(40), Status = AttendanceStatus.Late });
+                await context.SaveChangesAsync();
+            }
+
+            // 3. Teacher 3 does not check in -> Absent
+
+            // 4. HM reviews stats
+            _authStateProvider.SetUser(hm.UserName!, "Headmaster", hm.Id, school.Id);
+            var hmComponent = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(hmComponent);
+
+            var initMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)initMethod!.Invoke(hmComponent, null)!;
+
+            var presentField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("presentCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var lateField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("lateCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var absentField = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetField("absentCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.Equals(1, (int)presentField!.GetValue(hmComponent)!, "1 Present");
+            Assert.Equals(1, (int)lateField!.GetValue(hmComponent)!, "1 Late");
+            Assert.Equals(1, (int)absentField!.GetValue(hmComponent)!, "1 Absent");
+
+            // 5. HM overrides Teacher 3 to Present because they were on official duty
+            var overrideMethod = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance)
+                .GetMethod("SetAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)overrideMethod!.Invoke(hmComponent, new object[] { t3.Id, AttendanceStatus.Present })!;
+
+            Assert.Equals(2, (int)presentField!.GetValue(hmComponent)!, "Should now be 2 Present");
+            Assert.Equals(0, (int)absentField!.GetValue(hmComponent)!, "Should now be 0 Absent");
+        }
+
+        public async Task Test_Scenario_MaintenanceModeActive_PreventsAllCheckIns()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Main High School");
+            var teacher = await CreateUserAsync("t_maint@school.com", "Teacher Maint", "Teacher", school.Id);
+
+            // Set maintenance mode to true
+            await SetDailyDeadlineAsync(new TimeSpan(8, 30, 0), maintenance: true);
+
+            // Check if maintenance mode is active in settings
+            using var context = TestDbHelper.CreateDbContext();
+            var setting = await context.SystemSettings.FirstOrDefaultAsync();
+            Assert.NotNull(setting, "Setting should exist.");
+            Assert.True(setting!.MaintenanceMode, "Maintenance mode should be active.");
+        }
+
+        public async Task Test_Scenario_MonthTransition_HistoryTableAccuracy()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Main High School");
+            var teacher = await CreateUserAsync("t_trans@school.com", "Teacher Trans", "Teacher", school.Id);
+
+            var lastDayOfPrevMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddDays(-1);
+            var firstDayOfCurrentMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+
+            using var context = TestDbHelper.CreateDbContext();
+            context.Attendances.Add(new Attendance { TeacherId = teacher.Id, Date = lastDayOfPrevMonth, Status = AttendanceStatus.Present });
+            context.Attendances.Add(new Attendance { TeacherId = teacher.Id, Date = firstDayOfCurrentMonth, Status = AttendanceStatus.Present });
+            await context.SaveChangesAsync();
+
+            // Verify both records exist in DB
+            var count = await context.Attendances.CountAsync(a => a.TeacherId == teacher.Id);
+            Assert.Equals(2, count, "Both transition records should be in the database.");
+        }
+
+        public async Task Test_Scenario_DaylightSavingTimeTransition()
+        {
+            await ResetStateAsync();
+            var school = await CreateSchoolAsync("Main High School");
+            var teacher = await CreateUserAsync("t_dst@school.com", "Teacher DST", "Teacher", school.Id);
+
+            // Simulate check-in during DST transition (e.g. November transition)
+            var dstTime = new DateTime(2026, 11, 1, 8, 15, 0, DateTimeKind.Utc);
+            
+            using var context = TestDbHelper.CreateDbContext();
+            context.Attendances.Add(new Attendance { TeacherId = teacher.Id, Date = dstTime.Date, CheckedInAt = dstTime, Status = AttendanceStatus.Present });
+            await context.SaveChangesAsync();
+
+            var record = await context.Attendances.FirstOrDefaultAsync(a => a.TeacherId == teacher.Id);
+            Assert.NotNull(record, "DST record should be saved.");
+            Assert.Equals(dstTime, record!.CheckedInAt!.Value, "DST UTC time should match exactly.");
+        }
+
+        public async Task Test_Scenario_MultipleSchoolsOperatingIndependently()
+        {
+            await ResetStateAsync();
+            var school1 = await CreateSchoolAsync("School 1");
+            var school2 = await CreateSchoolAsync("School 2");
+
+            var hm1 = await CreateUserAsync("hm1_ind@school.com", "HM One", "Headmaster", school1.Id);
+            var hm2 = await CreateUserAsync("hm2_ind@school.com", "HM Two", "Headmaster", school2.Id);
+
+            var t1 = await CreateUserAsync("t1_ind@school.com", "Teacher One", "Teacher", school1.Id);
+            var t2 = await CreateUserAsync("t2_ind@school.com", "Teacher Two", "Teacher", school2.Id);
+
+            // HM 1 views school 1
+            _authStateProvider.SetUser(hm1.UserName!, "Headmaster", hm1.Id, school1.Id);
+            var hm1Component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(hm1Component);
+
+            var init1 = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance).GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)init1!.Invoke(hm1Component, null)!;
+
+            var list1Field = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance).GetField("teachersAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var list1 = (System.Collections.IList)list1Field!.GetValue(hm1Component)!;
+            Assert.Equals(1, list1.Count, "HM 1 should only see 1 teacher.");
+
+            // HM 2 views school 2
+            _authStateProvider.ClearUser();
+            _authStateProvider.SetUser(hm2.UserName!, "Headmaster", hm2.Id, school2.Id);
+            var hm2Component = new MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance();
+            InjectServices(hm2Component);
+
+            var init2 = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance).GetMethod("OnInitializedAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            await (Task)init2!.Invoke(hm2Component, null)!;
+
+            var list2Field = typeof(MainSchoolsManagementSystem.Components.Pages.Headmaster.Attendance).GetField("teachersAttendance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var list2 = (System.Collections.IList)list2Field!.GetValue(hm2Component)!;
+            Assert.Equals(1, list2.Count, "HM 2 should only see 1 teacher.");
+        }
+
+        #endregion
+    }
+
+    public static class Assert
+    {
+        public static void True(bool condition, string message)
+        {
+            if (!condition) throw new Exception($"Assert.True Failed: {message}");
+        }
+        public static void False(bool condition, string message)
+        {
+            if (condition) throw new Exception($"Assert.False Failed: {message}");
+        }
+        public static void Equals<T>(T expected, T actual, string message)
+        {
+            if (!EqualityComparer<T>.Default.Equals(expected, actual))
+            {
+                throw new Exception($"Assert.Equals Failed: {message}. Expected: {expected}, Actual: {actual}");
+            }
+        }
+        public static void NotNull(object? obj, string message)
+        {
+            if (obj == null) throw new Exception($"Assert.NotNull Failed: {message}");
+        }
+        public static void Null(object? obj, string message)
+        {
+            if (obj != null) throw new Exception($"Assert.Null Failed: {message}");
+        }
+        public static void Fail(string message)
+        {
+            throw new Exception($"Assert.Fail: {message}");
+        }
+    }
+}

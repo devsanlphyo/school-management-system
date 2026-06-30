@@ -1,4 +1,4 @@
-﻿# HelloTwo — Design System
+# HelloTwo — Design System
 
 > **Reference document** for all UI patterns, tokens, components, and conventions used across the HelloTwo Schools Management System. Keep this file updated whenever new components or patterns are introduced.
 
@@ -625,3 +625,34 @@ StateHasChanged();
 | `Components/Pages/Admin/Profile.razor` | Reference: narrow form page with two sections |
 | `Components/Pages/Headmaster/Dashboard.razor` | Reference: stat cards + action center cards |
 | `Data/DbSeeder.cs` | Seeded default users and roles |
+
+---
+
+## 13. Feed Components
+
+### 13.1 Feed Layout
+The feed page layout utilizes `.feed-container` with a max-width of 680px for a focused timeline view.
+
+### 13.2 Post Card
+```html
+<div class="glass-panel post-card">
+  <div class="post-header">...</div>
+  <div class="post-content">...</div>
+  <div class="media-grid count-X">...</div>
+  <div class="interaction-bar">...</div>
+</div>
+```
+- Built on top of the `.glass-panel` component.
+- Uses `--radius-lg` and `--shadow`.
+
+### 13.3 Media Grid
+Dynamic grid system `.media-grid` depending on the number of attachments:
+- `.count-1`: 1 full-width item
+- `.count-2`: 2 columns
+- `.count-3`: 1 large top item + 2 smaller items below
+- `.count-4`: 2x2 grid. If more than 4, the 4th item has a `.more-overlay`
+
+### 13.4 Interaction & Comments
+- **Reactions**: `.interact-btn` with `.loved` state for toggling the heart.
+- **Comments**: `.comments-section` containing `.comment-item` and `.comment-bubble` for chat-like UI.
+```
