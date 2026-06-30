@@ -18,16 +18,29 @@
         <p style="color: var(--text-secondary); font-size: 0.9rem;">View teacher leave submissions across all schools.</p>
     </div>
 
+    <!-- School Tabs -->
+    <div class="tab-navigation" style="margin-bottom: 0.5rem;">
+        <button class="tab-link @(activeSchoolId == null ? "active" : "")" @onclick='() => SetActiveSchool(null)'>
+            All Schools
+        </button>
+        @foreach (var school in schools)
+        {
+            <button class="tab-link @(activeSchoolId == school.Id ? "active" : "")" @onclick='() => SetActiveSchool(school.Id)'>
+                @school.Name
+            </button>
+        }
+    </div>
+
     <!-- Tabbed Navigation -->
     <div class="tab-navigation">
         <button class="tab-link @(activeTab == "pending" ? "active" : "")" @onclick='() => SetActiveTab("pending")'>
-            Pending (@pendingRequests.Count)
+            Pending (@GetFilteredRequests(pendingRequests).Count())
         </button>
         <button class="tab-link @(activeTab == "approved" ? "active" : "")" @onclick='() => SetActiveTab("approved")'>
-            Approved (@approvedRequests.Count)
+            Approved (@GetFilteredRequests(approvedRequests).Count())
         </button>
         <button class="tab-link @(activeTab == "rejected" ? "active" : "")" @onclick='() => SetActiveTab("rejected")'>
-            Rejected (@rejectedRequests.Count)
+            Rejected (@GetFilteredRequests(rejectedRequests).Count())
         </button>
     </div>
 
@@ -42,7 +55,7 @@
                         <div>
                             <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary);">
                                 @request.User?.FullName
-                                <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-secondary); margin-left: 0.5rem;">(School ID: @(request.User?.SchoolId?.ToString() ?? "N/A"))</span>
+                                <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-secondary); margin-left: 0.5rem;">(School: @(request.User?.School?.Name ?? "N/A"))</span>
                             </div>
                             <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
                                 Submitted on: @request.SubmittedAt.ToLocalTime().ToString("g")
@@ -90,6 +103,8 @@
 
 @code {
     private string activeTab = "pending";
+    private List<School> schools = new();
+    private int? activeSchoolId = null;
 
     private List<LeaveRequest> pendingRequests = new();
     private List<LeaveRequest> approvedRequests = new();
@@ -102,6 +117,7 @@
 
         if (user.Identity?.IsAuthenticated == true)
         {
+            schools = await DbContext.Schools.OrderBy(s => s.Name).ToListAsync();
             await LoadLeaveRequests();
         }
     }
@@ -110,6 +126,7 @@
     {
         var allRequests = await DbContext.LeaveRequests
             .Include(lr => lr.User)
+                .ThenInclude(u => u.School)
             .OrderByDescending(lr => lr.SubmittedAt)
             .ToListAsync();
 
@@ -123,14 +140,26 @@
         activeTab = tab;
     }
 
-    private List<LeaveRequest> GetActiveRequests()
+    private void SetActiveSchool(int? schoolId)
     {
-        return activeTab switch
+        activeSchoolId = schoolId;
+    }
+
+    private IEnumerable<LeaveRequest> GetFilteredRequests(List<LeaveRequest> requests)
+    {
+        if (activeSchoolId == null) return requests;
+        return requests.Where(r => r.User?.SchoolId == activeSchoolId);
+    }
+
+    private IEnumerable<LeaveRequest> GetActiveRequests()
+    {
+        var requests = activeTab switch
         {
             "pending" => pendingRequests,
             "approved" => approvedRequests,
             "rejected" => rejectedRequests,
             _ => pendingRequests
         };
+        return GetFilteredRequests(requests);
     }
 }

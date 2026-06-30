@@ -28,6 +28,19 @@
         </div>
     </div>
 
+    <!-- School Tabs -->
+    <div class="tab-navigation" style="margin-bottom: 0.5rem;">
+        <button class="tab-link @(activeSchoolId == null ? "active" : "")" @onclick='() => SetActiveSchool(null)'>
+            All Schools
+        </button>
+        @foreach (var school in schools)
+        {
+            <button class="tab-link @(activeSchoolId == school.Id ? "active" : "")" @onclick='() => SetActiveSchool(school.Id)'>
+                @school.Name
+            </button>
+        }
+    </div>
+
     <!-- Attendance Stats -->
     <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
         <div class="stat-card success" style="padding: 1rem 1.25rem; gap: 0.25rem;">
@@ -44,6 +57,22 @@
         </div>
     </div>
 
+    <!-- Status Filter Tabs -->
+    <div class="tab-navigation" style="margin-bottom: 0.5rem;">
+        <button class="tab-link @(activeStatus == "all" ? "active" : "")" @onclick='() => SetActiveStatus("all")'>
+            All Statuses
+        </button>
+        <button class="tab-link @(activeStatus == "present" ? "active" : "")" @onclick='() => SetActiveStatus("present")'>
+            Present (@presentCount)
+        </button>
+        <button class="tab-link @(activeStatus == "late" ? "active" : "")" @onclick='() => SetActiveStatus("late")'>
+            Late (@lateCount)
+        </button>
+        <button class="tab-link @(activeStatus == "absent" ? "active" : "")" @onclick='() => SetActiveStatus("absent")'>
+            Absent (@absentCount)
+        </button>
+    </div>
+
     <!-- Attendance Grid -->
     <div class="glass-panel" style="padding: 0;">
         <div class="table-container">
@@ -56,14 +85,14 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @if (teachersAttendance.Any())
+                    @if (GetFilteredAttendance().Any())
                     {
-                        foreach (var record in teachersAttendance)
+                        foreach (var record in GetFilteredAttendance())
                         {
                             <tr>
                                 <td>
                                     <div style="font-weight: 600; color: var(--text-primary);">@record.Teacher.FullName</div>
-                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">School ID: @(record.Teacher.SchoolId?.ToString() ?? "N/A")</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">School: @(GetSchoolName(record.Teacher.SchoolId))</div>
                                 </td>
                                 <td>
                                     @if (record.Attendance == null)
@@ -109,6 +138,9 @@
 @code {
     private DateTime selectedDate = DateTime.Today;
     private List<TeacherAttendanceRecord> teachersAttendance = new();
+    private List<School> schools = new();
+    private int? activeSchoolId = null;
+    private string activeStatus = "all";
 
     private int presentCount = 0;
     private int lateCount = 0;
@@ -121,6 +153,7 @@
 
         if (user.Identity?.IsAuthenticated == true)
         {
+            schools = await DbContext.Schools.OrderBy(s => s.Name).ToListAsync();
             await LoadAttendanceData();
         }
     }
@@ -156,11 +189,53 @@
 
     private void CalculateStats()
     {
-        presentCount = teachersAttendance.Count(r => r.Attendance?.Status == AttendanceStatus.Present);
-        lateCount = teachersAttendance.Count(r => r.Attendance?.Status == AttendanceStatus.Late);
+        var filtered = GetSchoolFilteredAttendance().ToList();
+        presentCount = filtered.Count(r => r.Attendance?.Status == AttendanceStatus.Present);
+        lateCount = filtered.Count(r => r.Attendance?.Status == AttendanceStatus.Late);
         
         // Count as absent if status is Absent or if there is no attendance record at all
-        absentCount = teachersAttendance.Count(r => r.Attendance == null || r.Attendance.Status == AttendanceStatus.Absent);
+        absentCount = filtered.Count(r => r.Attendance == null || r.Attendance.Status == AttendanceStatus.Absent);
+    }
+
+    private IEnumerable<TeacherAttendanceRecord> GetSchoolFilteredAttendance()
+    {
+        if (activeSchoolId == null)
+            return teachersAttendance;
+        return teachersAttendance.Where(r => r.Teacher.SchoolId == activeSchoolId);
+    }
+
+    private IEnumerable<TeacherAttendanceRecord> GetFilteredAttendance()
+    {
+        var filtered = GetSchoolFilteredAttendance();
+        
+        if (activeStatus != "all")
+        {
+            if (activeStatus == "present")
+                filtered = filtered.Where(r => r.Attendance?.Status == AttendanceStatus.Present);
+            else if (activeStatus == "late")
+                filtered = filtered.Where(r => r.Attendance?.Status == AttendanceStatus.Late);
+            else if (activeStatus == "absent")
+                filtered = filtered.Where(r => r.Attendance == null || r.Attendance.Status == AttendanceStatus.Absent);
+        }
+
+        return filtered;
+    }
+
+    private void SetActiveStatus(string status)
+    {
+        activeStatus = status;
+    }
+
+    private void SetActiveSchool(int? schoolId)
+    {
+        activeSchoolId = schoolId;
+        CalculateStats();
+    }
+
+    private string GetSchoolName(int? schoolId)
+    {
+        if (schoolId == null) return "N/A";
+        return schools.FirstOrDefault(s => s.Id == schoolId)?.Name ?? "N/A";
     }
 
     public class TeacherAttendanceRecord

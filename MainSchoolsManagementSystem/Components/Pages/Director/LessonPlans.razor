@@ -20,82 +20,138 @@
         <p style="color: var(--text-secondary); font-size: 0.9rem;">Review submissions, check compliance, and provide feedback.</p>
     </div>
 
+    <!-- School Tabs -->
+    <div class="tab-navigation" style="margin-bottom: 0.5rem;">
+        <button class="tab-link @(activeSchoolId == null ? "active" : "")" @onclick='() => SetActiveSchool(null)'>
+            All Schools
+        </button>
+        @foreach (var school in schools)
+        {
+            <button class="tab-link @(activeSchoolId == school.Id ? "active" : "")" @onclick='() => SetActiveSchool(school.Id)'>
+                @school.Name
+            </button>
+        }
+    </div>
+
     <!-- Tabbed Navigation -->
     <div class="tab-navigation">
         <button class="tab-link @(activeTab == "pending" ? "active" : "")" @onclick='() => SetActiveTab("pending")'>
-            Pending Review (@pendingPlans.Count)
+            Pending Review (@GetFilteredPlans(pendingPlans).Count())
         </button>
         <button class="tab-link @(activeTab == "reviewed" ? "active" : "")" @onclick='() => SetActiveTab("reviewed")'>
-            Reviewed (@reviewedPlans.Count)
+            Reviewed (@GetFilteredPlans(reviewedPlans).Count())
+        </button>
+        <button class="tab-link @(activeTab == "missing" ? "active" : "")" @onclick='() => SetActiveTab("missing")'>
+            Missing (@GetFilteredMissingTeachers().Count())
         </button>
     </div>
 
     <!-- Submissions List -->
     <div class="glass-panel" style="padding: 0;">
         <div class="table-container">
-            <table class="premium-table">
-                <thead>
-                    <tr>
-                        <th>Teacher</th>
-                        <th>Uploaded At</th>
-                        <th>Compliance</th>
-                        <th>Status</th>
-                        <th style="text-align: right;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (GetActivePlans().Any())
-                    {
-                        foreach (var plan in GetActivePlans())
+            @if (activeTab == "missing")
+            {
+                <table class="premium-table">
+                    <thead>
+                        <tr>
+                            <th>Teacher</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (GetFilteredMissingTeachers().Any())
+                        {
+                            foreach (var teacher in GetFilteredMissingTeachers())
+                            {
+                                <tr>
+                                    <td>
+                                        <div style="font-weight: 600; color: var(--text-primary);">@teacher.FullName</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">School: @(teacher.School?.Name ?? "N/A")</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-absent">Not Uploaded Today</span>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
                         {
                             <tr>
-                                <td>
-                                    <div style="font-weight: 600; color: var(--text-primary);">@plan.Teacher?.FullName</div>
-                                </td>
-                                <td>
-                                    @plan.UploadedAt.ToLocalTime().ToString("g")
-                                </td>
-                                <td>
-                                    @if (plan.IsLate)
-                                    {
-                                        <span class="badge badge-late" style="cursor: help;" title="Submitted after daily deadline">
-                                            Late Submission
-                                        </span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge badge-present">On Time</span>
-                                    }
-                                </td>
-                                <td>
-                                    @if (plan.Status == LessonPlanStatus.Pending)
-                                    {
-                                        <span class="badge badge-pending">Pending Review</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge badge-present">Reviewed</span>
-                                    }
-                                </td>
-                                <td style="text-align: right;">
-                                    <button class="btn-premium" style="padding: 0.4rem 0.80rem; font-size: 0.8rem;" 
-                                            @onclick="() => OpenReviewModal(plan)">
-                                        View Details
-                                    </button>
+                                <td colspan="2" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                    All teachers have uploaded their lesson plans for today (or it is the weekend).
                                 </td>
                             </tr>
                         }
-                    }
-                    else
-                    {
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <table class="premium-table">
+                    <thead>
                         <tr>
-                            <td colspan="5" style="text-align: center; padding: 3rem; color: var(--text-muted);">
-                                No lesson plans found.
-                            </td>
+                            <th>Teacher</th>
+                            <th>Uploaded At</th>
+                            <th>Compliance</th>
+                            <th>Status</th>
+                            <th style="text-align: right;">Actions</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @if (GetActivePlans().Any())
+                        {
+                            foreach (var plan in GetActivePlans())
+                            {
+                                <tr>
+                                    <td>
+                                        <div style="font-weight: 600; color: var(--text-primary);">@plan.Teacher?.FullName</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">School: @(plan.Teacher?.School?.Name ?? "N/A")</div>
+                                    </td>
+                                    <td>
+                                        @plan.UploadedAt.ToLocalTime().ToString("g")
+                                    </td>
+                                    <td>
+                                        @if (plan.IsLate)
+                                        {
+                                            <span class="badge badge-late" style="cursor: help;" title="Submitted after daily deadline">
+                                                Late Submission
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-present">On Time</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (plan.Status == LessonPlanStatus.Pending)
+                                        {
+                                            <span class="badge badge-pending">Pending Review</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-present">Reviewed</span>
+                                        }
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <button class="btn-premium" style="padding: 0.4rem 0.80rem; font-size: 0.8rem;" 
+                                                @onclick="() => OpenReviewModal(plan)">
+                                            View Details
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                    No lesson plans found.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
         </div>
     </div>
 </div>
@@ -187,9 +243,12 @@
 
 @code {
     private string activeTab = "pending";
+    private List<School> schools = new();
+    private int? activeSchoolId = null;
 
     private List<LessonPlan> pendingPlans = new();
     private List<LessonPlan> reviewedPlans = new();
+    private List<ApplicationUser> missingTeachers = new();
     private Dictionary<int, string> lessonPlanUrls = new();
     private Dictionary<int, string> justificationUrls = new();
 
@@ -203,6 +262,7 @@
 
         if (user.Identity?.IsAuthenticated == true)
         {
+            schools = await DbContext.Schools.OrderBy(s => s.Name).ToListAsync();
             await LoadLessonPlans();
         }
     }
@@ -211,11 +271,44 @@
     {
         var allPlans = await DbContext.LessonPlans
             .Include(lp => lp.Teacher)
+                .ThenInclude(t => t.School)
             .OrderByDescending(lp => lp.UploadedAt)
             .ToListAsync();
 
         pendingPlans = allPlans.Where(p => p.Status == LessonPlanStatus.Pending).ToList();
         reviewedPlans = allPlans.Where(p => p.Status == LessonPlanStatus.Reviewed).ToList();
+        
+        var teacherRole = await DbContext.Roles.FirstOrDefaultAsync(r => r.Name == "Teacher");
+        if (teacherRole != null)
+        {
+            var teacherUserIds = await DbContext.UserRoles
+                .Where(ur => ur.RoleId == teacherRole.Id)
+                .Select(ur => ur.UserId)
+                .ToListAsync();
+                
+            var allTeachers = await DbContext.Users
+                .Include(u => u.School)
+                .Where(u => teacherUserIds.Contains(u.Id))
+                .ToListAsync();
+
+            var today = DateTime.Today;
+            if (today.DayOfWeek == DayOfWeek.Saturday || today.DayOfWeek == DayOfWeek.Sunday)
+            {
+                missingTeachers = new List<ApplicationUser>();
+            }
+            else
+            {
+                var uploadedTodayIds = allPlans
+                    .Where(p => p.UploadedAt.Date == today)
+                    .Select(p => p.TeacherId)
+                    .ToHashSet();
+
+                missingTeachers = allTeachers
+                    .Where(t => !uploadedTodayIds.Contains(t.Id))
+                    .ToList();
+            }
+        }
+
         LoadFileUrls();
     }
 
@@ -224,14 +317,32 @@
         activeTab = tab;
     }
 
-    private List<LessonPlan> GetActivePlans()
+    private void SetActiveSchool(int? schoolId)
     {
-        return activeTab switch
+        activeSchoolId = schoolId;
+    }
+
+    private IEnumerable<LessonPlan> GetFilteredPlans(List<LessonPlan> plans)
+    {
+        if (activeSchoolId == null) return plans;
+        return plans.Where(p => p.Teacher?.SchoolId == activeSchoolId);
+    }
+
+    private IEnumerable<ApplicationUser> GetFilteredMissingTeachers()
+    {
+        if (activeSchoolId == null) return missingTeachers;
+        return missingTeachers.Where(t => t.SchoolId == activeSchoolId);
+    }
+
+    private IEnumerable<LessonPlan> GetActivePlans()
+    {
+        var plans = activeTab switch
         {
             "pending" => pendingPlans,
             "reviewed" => reviewedPlans,
             _ => pendingPlans
         };
+        return GetFilteredPlans(plans);
     }
 
     private void OpenReviewModal(LessonPlan plan)
