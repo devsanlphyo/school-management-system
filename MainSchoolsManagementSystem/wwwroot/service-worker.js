@@ -43,14 +43,18 @@ self.addEventListener('fetch', event => {
         // If the network fails, we look in the cache
         return caches.match(event.request)
           .then(response => {
-            // Return cached response if found, otherwise return the offline page
-            // especially for navigation requests
+            // Return cached response if found
             if (response) {
               return response;
             }
+            // If it's a navigation request, try to return offline page
             if (event.request.mode === 'navigate') {
-              return caches.match(OFFLINE_URL);
+              return caches.match(OFFLINE_URL).then(offlineResponse => {
+                 return offlineResponse || new Response('Offline - No internet connection.', { status: 503, statusText: 'Service Unavailable' });
+              });
             }
+            // For all other requests that fail network and aren't cached
+            return new Response('Network error occurred', { status: 408, statusText: 'Request Timeout' });
           });
       })
   );

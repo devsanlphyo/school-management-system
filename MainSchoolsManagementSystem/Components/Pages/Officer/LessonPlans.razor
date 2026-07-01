@@ -151,13 +151,6 @@
                         <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-primary); margin-bottom: 0.75rem;">
                             @(string.IsNullOrEmpty(selectedPlan.JustificationText) ? "No justification provided." : selectedPlan.JustificationText)
                         </p>
-                        @if (selectedPlan.HasJustificationAttachment && justificationUrls.TryGetValue(selectedPlan.Id, out var jUrl))
-                        {
-                            <a href="@jUrl" target="_blank" class="btn-premium btn-secondary-custom" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.8rem; font-size: 0.85rem; text-decoration: none;">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                View / Download Attachment
-                            </a>
-                        }
                     </div>
                 }
 
@@ -192,7 +185,6 @@
     private List<LessonPlan> pendingPlans = new();
     private List<LessonPlan> reviewedPlans = new();
     private Dictionary<int, string> lessonPlanUrls = new();
-    private Dictionary<int, string> justificationUrls = new();
 
     private bool showReviewModal = false;
     private LessonPlan? selectedPlan;
@@ -258,7 +250,6 @@
     private void LoadFileUrls()
     {
         lessonPlanUrls.Clear();
-        justificationUrls.Clear();
         var uploadsPath = Path.Combine(Env.WebRootPath, "uploads");
         if (Directory.Exists(uploadsPath))
         {
@@ -271,10 +262,6 @@
                     var idStr = Path.GetFileNameWithoutExtension(fileName).Substring("lessonplan_".Length);
                     if (int.TryParse(idStr, out int id)) lessonPlanUrls[id] = $"/uploads/{fileName}";
                 }
-                else if (fileName.StartsWith("justification_"))
-                {
-                    var idStr = Path.GetFileNameWithoutExtension(fileName).Substring("justification_".Length);
-                    if (int.TryParse(idStr, out int id)) justificationUrls[id] = $"/uploads/{fileName}";
                 }
             }
         }
