@@ -450,9 +450,9 @@
                 
                 try
                 {
-                    var buffer = new byte[file.Size];
-                    await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).ReadAsync(buffer);
-                    var base64 = Convert.ToBase64String(buffer);
+                    using var ms = new MemoryStream();
+                    await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(ms);
+                    var base64 = Convert.ToBase64String(ms.ToArray());
                     imagePreviews[file] = $"data:{file.ContentType};base64,{base64}";
                 }
                 catch (Exception)
