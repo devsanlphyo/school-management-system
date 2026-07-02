@@ -553,11 +553,21 @@
         }
     }
 
-    private void OnFullNameBlur()
+    private async Task OnFullNameBlur()
     {
         if (!string.IsNullOrWhiteSpace(registerFullName))
         {
-            registerEmail = registerFullName.ToLower().Replace(" ", "") + randomEmailDigit.ToString() + "@helloone.edu.com";
+            var baseEmail = registerFullName.ToLower().Replace(" ", "") + "@helloone.edu.com";
+            var existingUser = await UserManager.FindByEmailAsync(baseEmail);
+            
+            if (existingUser != null)
+            {
+                registerEmail = registerFullName.ToLower().Replace(" ", "") + randomEmailDigit.ToString() + "@helloone.edu.com";
+            }
+            else
+            {
+                registerEmail = baseEmail;
+            }
         }
     }
 
