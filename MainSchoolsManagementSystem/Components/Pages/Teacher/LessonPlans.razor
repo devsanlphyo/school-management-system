@@ -63,6 +63,64 @@
             </div>
         </div>
 
+        <!-- Confirm Modal -->
+        @if (showConfirmModal)
+        {
+            <div class="modal-backdrop-custom">
+                <div class="modal-content-custom" style="max-width: 500px;">
+                    <div class="modal-header-custom">
+                        <h3 style="font-size: 1.15rem; font-weight: 800;">Review Submission</h3>
+                        <button class="btn-premium btn-secondary-custom" style="padding: 0.35rem;" @onclick="() => showConfirmModal = false">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    </div>
+                    <div class="modal-body-custom" style="display: flex; flex-direction: column; gap: 1rem;">
+                        <p style="margin: 0; font-size: 0.95rem;">You are about to upload <strong>@selectedLessonPlanFiles.Count</strong> images.</p>
+                        
+                        <div style="background: rgba(0,0,0,0.05); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                            <strong>Class/Subject:</strong> @GetSelectedAssignmentName()
+                        </div>
+
+                        @if (isSubmissionLate)
+                        {
+                            <div style="background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: var(--radius-md); padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--warning); font-weight: 700; font-size: 0.85rem; text-transform: uppercase;">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                    Late Submission
+                                </div>
+                                <p style="font-size: 0.85rem; margin: 0; color: var(--text-secondary);">
+                                    @GetLatenessString(DateTime.Now.TimeOfDay - dailyDeadline)
+                                </p>
+                            </div>
+                        }
+
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            @foreach (var file in selectedLessonPlanFiles)
+                            {
+                                if (imagePreviews.TryGetValue(file, out var url))
+                                {
+                                    <img src="@url" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color);" />
+                                }
+                            }
+                        </div>
+                    </div>
+                    <div class="modal-footer-custom">
+                        <button class="btn-premium btn-secondary-custom" @onclick="() => showConfirmModal = false">Cancel</button>
+                        <button class="btn-premium" style="display: flex; align-items: center; gap: 0.5rem;" disabled="@isUploading" @onclick="HandleSubmit">
+                            @if (isUploading)
+                            {
+                                <span>Uploading...</span>
+                            }
+                            else
+                            {
+                                <span>Confirm & Upload</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+
         <!-- Submission Form -->
         <div class="glass-panel" style="flex: 2 1 500px; padding: 1.5rem;">
             <h3 style="font-size: 1.15rem; margin-bottom: 1rem; color: var(--text-primary);">Upload Lesson Plan</h3>
@@ -94,13 +152,25 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" style="font-weight: 600;">Lesson Plan Files (PDF, DOCX, etc.)</label>
-                    <InputFile multiple OnChange="OnLessonPlanSelected" class="form-control-custom" style="padding: 0.5rem;" />
+                    <label class="form-label" style="font-weight: 600;">Lesson Plan Images</label>
+                    <InputFile accept="image/*" multiple OnChange="OnLessonPlanSelected" class="form-control-custom" style="padding: 0.5rem;" />
                     @if (selectedLessonPlanFiles.Count > 0)
                     {
-                        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
-                            Selected @selectedLessonPlanFiles.Count file(s).
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem;">
+                            @foreach (var file in selectedLessonPlanFiles)
+                            {
+                                if (imagePreviews.TryGetValue(file, out var url))
+                                {
+                                    <div style="position: relative;">
+                                        <img src="@url" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color);" />
+                                    </div>
+                                }
+                            }
                         </div>
+                        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                            Selected @selectedLessonPlanFiles.Count image(s). You can select more to add them.
+                        </div>
+                        <button type="button" class="btn-premium btn-secondary-custom" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin-top: 0.5rem;" @onclick="ClearFiles">Clear Files</button>
                     }
                 </div>
 
@@ -123,16 +193,9 @@
                 }
 
                 <div style="display: flex; justify-content: flex-end; margin-top: 0.5rem;">
-                    <button type="submit" class="btn-premium" style="display: flex; align-items: center; gap: 0.5rem;" disabled="@isUploading">
-                        @if (isUploading)
-                        {
-                            <span>Uploading...</span>
-                        }
-                        else
-                        {
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                            <span>Submit Lesson Plan</span>
-                        }
+                    <button type="button" class="btn-premium" style="display: flex; align-items: center; gap: 0.5rem;" @onclick="OpenConfirmModal">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <span>Review Submission</span>
                     </button>
                 </div>
             </EditForm>
@@ -141,9 +204,19 @@
 
     <!-- History List -->
     <div class="glass-panel" style="padding: 0;">
-        <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="font-size: 1.15rem; color: var(--text-primary); margin: 0;">Submission History</h3>
-            <span style="font-size: 0.85rem; color: var(--text-muted);">Total Submissions: @pastPlans.Count</span>
+        <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <h3 style="font-size: 1.15rem; color: var(--text-primary); margin: 0;">Submission History</h3>
+                <span style="font-size: 0.85rem; color: var(--text-muted);">Total Submissions: @pastPlans.Count</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Filter by Date:</label>
+                <input type="date" @bind="filterDate" class="form-control-custom" style="padding: 0.3rem 0.5rem; font-size: 0.85rem; width: auto;" />
+                @if (filterDate.HasValue)
+                {
+                    <button class="btn-premium btn-secondary-custom" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" @onclick="() => filterDate = null">Clear</button>
+                }
+            </div>
         </div>
         <div class="table-container">
             <table class="premium-table">
@@ -158,9 +231,9 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @if (pastPlans.Any())
+                    @if (FilteredPastPlans.Any())
                     {
-                        foreach (var plan in pastPlans)
+                        foreach (var plan in FilteredPastPlans)
                         {
                             <tr>
                                 <td>
@@ -180,7 +253,7 @@
                                     @if (plan.IsLate)
                                     {
                                         <span class="badge badge-late" style="cursor: help;" title="Submitted past the deadline">
-                                            Late Submission
+                                            Late (@GetLatenessString(plan.UploadedAt.TimeOfDay - dailyDeadline))
                                         </span>
                                     }
                                     else
@@ -248,13 +321,67 @@
     private List<TeacherAssignment> teacherAssignments = new();
     private string selectedAssignmentId = "";
 
-    private IReadOnlyList<IBrowserFile> selectedLessonPlanFiles = new List<IBrowserFile>();
+    private DateTime? filterDate;
+    private IEnumerable<LessonPlan> FilteredPastPlans => filterDate.HasValue 
+        ? pastPlans.Where(p => p.UploadedAt.Date == filterDate.Value.Date) 
+        : pastPlans;
+
+    private List<IBrowserFile> selectedLessonPlanFiles = new();
+    private Dictionary<IBrowserFile, string> imagePreviews = new();
     private string justificationText = "";
     
     private bool isSubmissionLate = false;
     private bool isUploading = false;
+    private bool showConfirmModal = false;
     private string errorMessage = "";
     private string successMessage = "";
+
+    private string GetLatenessString(TimeSpan diff)
+    {
+        if (diff.TotalMinutes < 0) return "On time";
+        return $"{diff.Hours}h {diff.Minutes}m";
+    }
+
+    private string GetSelectedAssignmentName()
+    {
+        if (int.TryParse(selectedAssignmentId, out int id))
+        {
+            var ta = teacherAssignments.FirstOrDefault(t => t.Id == id);
+            if (ta != null) return $"{ta.Subject?.Name ?? "General"} - {ta.Class?.Name ?? "General"}";
+        }
+        return "Unknown";
+    }
+
+    private void ClearFiles()
+    {
+        selectedLessonPlanFiles.Clear();
+        imagePreviews.Clear();
+    }
+    
+    private void OpenConfirmModal()
+    {
+        errorMessage = "";
+        if (selectedLessonPlanFiles.Count == 0)
+        {
+            errorMessage = "Please select at least one lesson plan image to upload.";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(selectedAssignmentId) || !int.TryParse(selectedAssignmentId, out _))
+        {
+            errorMessage = "Please select a Subject and Class for this lesson plan.";
+            return;
+        }
+        
+        isSubmissionLate = DateTime.Now.TimeOfDay > dailyDeadline;
+        if (isSubmissionLate && string.IsNullOrWhiteSpace(justificationText))
+        {
+            errorMessage = "Justification text is required for late submissions.";
+            return;
+        }
+
+        showConfirmModal = true;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -312,9 +439,29 @@
         LoadFileUrls();
     }
 
-    private void OnLessonPlanSelected(InputFileChangeEventArgs e)
+    private async Task OnLessonPlanSelected(InputFileChangeEventArgs e)
     {
-        selectedLessonPlanFiles = e.GetMultipleFiles(maximumFileCount: 10);
+        var newFiles = e.GetMultipleFiles(maximumFileCount: 10);
+        foreach (var file in newFiles)
+        {
+            if (file.ContentType.StartsWith("image/"))
+            {
+                selectedLessonPlanFiles.Add(file);
+                
+                try
+                {
+                    var buffer = new byte[file.Size];
+                    await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).ReadAsync(buffer);
+                    var base64 = Convert.ToBase64String(buffer);
+                    imagePreviews[file] = $"data:{file.ContentType};base64,{base64}";
+                }
+                catch (Exception)
+                {
+                    // Ignore preview fail
+                }
+            }
+        }
+        
         errorMessage = "";
         successMessage = "";
     }
@@ -352,11 +499,7 @@
 
         try
         {
-            if (selectedLessonPlanFiles.Count == 0)
-            {
-                errorMessage = "Please select at least one lesson plan file to upload.";
-                return;
-            }
+            showConfirmModal = false;
 
             if (string.IsNullOrEmpty(selectedAssignmentId) || !int.TryParse(selectedAssignmentId, out int assignmentId))
             {
@@ -416,7 +559,7 @@
             }
 
             // Reset Form
-            selectedLessonPlanFiles = new List<IBrowserFile>();
+            ClearFiles();
             justificationText = "";
             selectedAssignmentId = "";
             

@@ -136,7 +136,8 @@ namespace MainSchoolsManagementSystem.Data
                     context.LeaveRequests.Add(new LeaveRequest
                     {
                         UserId = schoolTeachers[0].Id,
-                        TargetDate = today.AddDays(1),
+                        StartDate = today.AddDays(1),
+                        EndDate = today.AddDays(1),
                         SubmittedAt = today.AddDays(-1),
                         Status = LeaveStatus.Pending,
                         Reason = "Urgent dental extraction surgery scheduled."
@@ -145,7 +146,8 @@ namespace MainSchoolsManagementSystem.Data
                     context.LeaveRequests.Add(new LeaveRequest
                     {
                         UserId = schoolTeachers[1].Id,
-                        TargetDate = today.AddDays(3),
+                        StartDate = today.AddDays(3),
+                        EndDate = today.AddDays(4),
                         SubmittedAt = today.AddDays(-2),
                         Status = LeaveStatus.Pending,
                         Reason = "Family wedding ceremony out of state."
@@ -154,7 +156,8 @@ namespace MainSchoolsManagementSystem.Data
                     context.LeaveRequests.Add(new LeaveRequest
                     {
                         UserId = schoolTeachers[0].Id,
-                        TargetDate = today.AddDays(-4),
+                        StartDate = today.AddDays(-4),
+                        EndDate = today.AddDays(-4),
                         SubmittedAt = today.AddDays(-6),
                         Status = LeaveStatus.Approved,
                         Reason = "Sick leave - influenza flu symptoms."

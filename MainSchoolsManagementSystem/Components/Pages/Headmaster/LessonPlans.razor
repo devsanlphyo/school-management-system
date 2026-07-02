@@ -15,9 +15,19 @@
 
 <div class="d-flex flex-column gap-4">
     <!-- Header -->
-    <div>
-        <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Lesson Plans Review</h2>
-        <p style="color: var(--text-secondary); font-size: 0.9rem;">Review submissions, check compliance, and provide feedback.</p>
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Lesson Plans Review</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">Review submissions, check compliance, and provide feedback.</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-secondary); padding: 0.5rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <label style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Filter by Date:</label>
+            <input type="date" @bind="filterDate" class="form-control-custom" style="padding: 0.3rem 0.5rem; font-size: 0.85rem; width: auto;" />
+            @if (filterDate.HasValue)
+            {
+                <button class="btn-premium btn-secondary-custom" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" @onclick="ClearFilterDate">Clear</button>
+            }
+        </div>
     </div>
 
     <!-- Tabbed Navigation -->
@@ -59,7 +69,7 @@
                                     @if (plan.IsLate)
                                     {
                                         <span class="badge badge-late" style="cursor: help;" title="Submitted after daily deadline">
-                                            Late Submission
+                                            Late (@GetLatenessString(plan.UploadedAt.TimeOfDay - dailyDeadline))
                                         </span>
                                     }
                                     else
@@ -124,8 +134,22 @@
 
                 <!-- Lesson Plan File -->
                 <div>
-                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Lesson Plan File:</span>
-                    <strong style="display: block; color: var(--text-muted); font-size: 0.9rem;">Download restricted for Headmaster role.</strong>
+                    <span style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">Lesson Plan Images:</span>
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                        @if (lessonPlanUrls.TryGetValue(selectedPlan.Id, out var urls) && urls.Any())
+                        {
+                            foreach (var url in urls)
+                            {
+                                <a href="@url" target="_blank" style="display: block; border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: hidden;">
+                                    <img src="@url" style="width: 150px; height: 150px; object-fit: cover; display: block;" alt="Lesson Plan Image" />
+                                </a>
+                            }
+                        }
+                        else
+                        {
+                            <span style="color: var(--text-muted); font-size: 0.9rem;">No images uploaded.</span>
+                        }
+                    </div>
                 </div>
 
                 <!-- Lateness / Justification -->
@@ -134,7 +158,7 @@
                     <div style="background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: var(--radius-md); padding: 1rem;">
                         <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--warning); font-weight: 700; font-size: 0.85rem; margin-bottom: 0.5rem; text-transform: uppercase;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                            Lateness Justification
+                            Lateness Justification (@GetLatenessString(selectedPlan.UploadedAt.TimeOfDay - dailyDeadline))
                         </div>
                         <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-primary); margin-bottom: 0.75rem;">
                             @(string.IsNullOrEmpty(selectedPlan.JustificationText) ? "No justification provided." : selectedPlan.JustificationText)
@@ -181,11 +205,21 @@
 
     private List<LessonPlan> pendingPlans = new();
     private List<LessonPlan> reviewedPlans = new();
-    private Dictionary<int, string> lessonPlanUrls = new();
+    private Dictionary<int, List<string>> lessonPlanUrls = new();
+
+    private TimeSpan dailyDeadline = new TimeSpan(8, 30, 0);
 
     private bool showReviewModal = false;
     private LessonPlan? selectedPlan;
     private string feedbackText = "";
+    
+    private DateTime? filterDate;
+
+    private async Task ClearFilterDate()
+    {
+        filterDate = null;
+        await LoadLessonPlans();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -194,6 +228,12 @@
 
         if (user.Identity?.IsAuthenticated == true)
         {
+            var setting = await DbContext.SystemSettings.FirstOrDefaultAsync();
+            if (setting != null)
+            {
+                dailyDeadline = setting.DailyDeadline;
+            }
+
             var appUser = await UserManager.GetUserAsync(user);
             if (appUser != null && appUser.SchoolId.HasValue)
             {
@@ -223,14 +263,20 @@
         activeTab = tab;
     }
 
-    private List<LessonPlan> GetActivePlans()
+    private IEnumerable<LessonPlan> GetActivePlans()
     {
-        return activeTab switch
+        var plans = activeTab switch
         {
             "pending" => pendingPlans,
             "reviewed" => reviewedPlans,
             _ => pendingPlans
         };
+        
+        if (filterDate.HasValue)
+        {
+            return plans.Where(p => p.UploadedAt.Date == filterDate.Value.Date);
+        }
+        return plans;
     }
 
     private void OpenReviewModal(LessonPlan plan)
@@ -297,11 +343,20 @@
                 var fileName = Path.GetFileName(file);
                 if (fileName.StartsWith("lessonplan_"))
                 {
-                    var idStr = Path.GetFileNameWithoutExtension(fileName).Substring("lessonplan_".Length);
-                    if (int.TryParse(idStr, out int id)) lessonPlanUrls[id] = $"/uploads/{fileName}";
-                }
+                    var parts = Path.GetFileNameWithoutExtension(fileName).Split('_');
+                    if (parts.Length >= 2 && int.TryParse(parts[1], out int id))
+                    {
+                        if (!lessonPlanUrls.ContainsKey(id)) lessonPlanUrls[id] = new List<string>();
+                        lessonPlanUrls[id].Add($"/uploads/{fileName}");
+                    }
                 }
             }
         }
+    }
+
+    private string GetLatenessString(TimeSpan diff)
+    {
+        if (diff.TotalMinutes < 0) return "On time";
+        return $"{diff.Hours}h {diff.Minutes}m";
     }
 }

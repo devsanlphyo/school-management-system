@@ -13,9 +13,19 @@
 
 <div class="d-flex flex-column gap-4">
     <!-- Header -->
-    <div>
-        <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Global Leave Requests</h2>
-        <p style="color: var(--text-secondary); font-size: 0.9rem;">View teacher leave submissions across all schools.</p>
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Global Leave Requests</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">View teacher leave submissions across all schools.</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-secondary); padding: 0.5rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <label style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Filter by Date:</label>
+            <input type="date" @bind="filterDate" class="form-control-custom" style="padding: 0.3rem 0.5rem; font-size: 0.85rem; width: auto;" />
+            @if (filterDate.HasValue)
+            {
+                <button class="btn-premium btn-secondary-custom" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" @onclick="() => filterDate = null">Clear</button>
+            }
+        </div>
     </div>
 
     <!-- School Tabs -->
@@ -62,9 +72,9 @@
                             </div>
                         </div>
                         <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem;">
-                            <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Target Date:</span>
+                            <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Leave Dates:</span>
                             <span style="font-size: 0.95rem; font-weight: 700; color: var(--primary);">
-                                @request.TargetDate.ToShortDateString()
+                                @request.StartDate.ToString("MMM dd") - @request.EndDate.ToString("MMM dd, yyyy")
                             </span>
                         </div>
                     </div>
@@ -105,6 +115,7 @@
     private string activeTab = "pending";
     private List<School> schools = new();
     private int? activeSchoolId = null;
+    private DateTime? filterDate;
 
     private List<LeaveRequest> pendingRequests = new();
     private List<LeaveRequest> approvedRequests = new();
@@ -160,6 +171,10 @@
             "rejected" => rejectedRequests,
             _ => pendingRequests
         };
-        return GetFilteredRequests(requests);
+        
+        var filtered = GetFilteredRequests(requests);
+        return filterDate.HasValue 
+            ? filtered.Where(r => filterDate.Value.Date >= r.StartDate.Date && filterDate.Value.Date <= r.EndDate.Date)
+            : filtered;
     }
 }

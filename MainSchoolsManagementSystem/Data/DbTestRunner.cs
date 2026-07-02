@@ -106,7 +106,8 @@ namespace MainSchoolsManagementSystem.Data
                 var leaveRequest = new LeaveRequest
                 {
                     UserId = teacher.Id,
-                    TargetDate = DateTime.Today.AddDays(2),
+                    StartDate = DateTime.Today.AddDays(2),
+                    EndDate = DateTime.Today.AddDays(2),
                     SubmittedAt = DateTime.UtcNow,
                     Status = LeaveStatus.Pending,
                     Reason = "Medical checkup"

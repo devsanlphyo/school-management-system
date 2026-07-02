@@ -30,10 +30,17 @@
             <EditForm Model="@newRequest" OnValidSubmit="SubmitRequest" class="d-flex flex-column gap-3">
                 <DataAnnotationsValidator />
                 
-                <div class="form-group">
-                    <label style="display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Leave Date</label>
-                    <InputDate @bind-Value="newRequest.TargetDate" class="form-control" style="padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); width: 100%; max-width: 300px;" />
-                    <ValidationMessage For="@(() => newRequest.TargetDate)" style="color: var(--danger-color); font-size: 0.8rem; margin-top: 0.25rem; display: block;" />
+                <div class="form-group" style="display: flex; gap: 1rem;">
+                    <div style="flex: 1;">
+                        <label style="display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">Start Date</label>
+                        <InputDate @bind-Value="newRequest.StartDate" class="form-control" style="padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); width: 100%;" />
+                        <ValidationMessage For="@(() => newRequest.StartDate)" style="color: var(--danger-color); font-size: 0.8rem; margin-top: 0.25rem; display: block;" />
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">End Date</label>
+                        <InputDate @bind-Value="newRequest.EndDate" class="form-control" style="padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); width: 100%;" />
+                        <ValidationMessage For="@(() => newRequest.EndDate)" style="color: var(--danger-color); font-size: 0.8rem; margin-top: 0.25rem; display: block;" />
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -60,15 +67,23 @@
 
     <!-- History Table -->
     <div class="glass-panel" style="padding: 0;">
-        <div style="padding: 1.25rem; border-bottom: 1px solid var(--border-color);">
+        <div style="padding: 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
             <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600;">Request History</h3>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Filter by Date:</label>
+                <input type="date" @bind="filterDate" class="form-control-custom" style="padding: 0.3rem 0.5rem; font-size: 0.85rem; width: auto;" />
+                @if (filterDate.HasValue)
+                {
+                    <button class="btn-premium btn-secondary-custom" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" @onclick="() => filterDate = null">Clear</button>
+                }
+            </div>
         </div>
         <div class="table-container">
             <table class="premium-table">
                 <thead>
                     <tr>
                         <th>Submission Date</th>
-                        <th>Leave Date</th>
+                        <th>Leave Dates</th>
                         <th>Reason</th>
                         <th>Status</th>
                     </tr>
@@ -84,11 +99,11 @@
                     }
                     else
                     {
-                        foreach (var request in myRequests)
+                        foreach (var request in FilteredRequests)
                         {
                             <tr>
                                 <td>@request.SubmittedAt.ToLocalTime().ToString("MMM dd, yyyy")</td>
-                                <td>@request.TargetDate.ToString("MMM dd, yyyy")</td>
+                                <td>@request.StartDate.ToString("MMM dd") - @request.EndDate.ToString("MMM dd, yyyy")</td>
                                 <td style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="@request.Reason">
                                     @request.Reason
                                 </td>
@@ -119,13 +134,21 @@
     private string? userId;
     private bool isMaintenanceMode = false;
     private bool isSubmitting = false;
+    private DateTime? filterDate;
     private List<LeaveRequest> myRequests = new();
-    private LeaveRequestInputModel newRequest = new() { TargetDate = DateTime.Today.AddDays(1) };
+    private LeaveRequestInputModel newRequest = new() { StartDate = DateTime.Today.AddDays(1), EndDate = DateTime.Today.AddDays(1) };
+    
+    private IEnumerable<LeaveRequest> FilteredRequests => filterDate.HasValue 
+        ? myRequests.Where(r => filterDate.Value.Date >= r.StartDate.Date && filterDate.Value.Date <= r.EndDate.Date)
+        : myRequests;
 
     public class LeaveRequestInputModel
     {
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Please select a target date for the leave.")]
-        public DateTime TargetDate { get; set; }
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Please select a start date.")]
+        public DateTime StartDate { get; set; }
+        
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Please select an end date.")]
+        public DateTime EndDate { get; set; }
 
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "A reason is required.")]
         [System.ComponentModel.DataAnnotations.StringLength(500, MinimumLength = 5, ErrorMessage = "Reason must be between 5 and 500 characters.")]
@@ -176,7 +199,8 @@
             var request = new LeaveRequest
             {
                 UserId = userId,
-                TargetDate = newRequest.TargetDate,
+                StartDate = newRequest.StartDate,
+                EndDate = newRequest.EndDate,
                 SubmittedAt = DateTime.UtcNow,
                 Status = LeaveStatus.Pending,
                 Reason = newRequest.Reason
@@ -186,7 +210,7 @@
             await DbContext.SaveChangesAsync();
 
             // Reset form
-            newRequest = new LeaveRequestInputModel { TargetDate = DateTime.Today.AddDays(1) };
+            newRequest = new LeaveRequestInputModel { StartDate = DateTime.Today.AddDays(1), EndDate = DateTime.Today.AddDays(1) };
             
             // Reload list
             await LoadRequests();
