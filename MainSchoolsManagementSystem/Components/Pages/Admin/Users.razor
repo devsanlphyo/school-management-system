@@ -133,7 +133,7 @@
             <div class="modal-body-custom" style="display: flex; flex-direction: column; gap: 1rem;">
                 <div class="form-group">
                     <label class="form-label">Full Name</label>
-                    <input type="text" class="form-control-custom" placeholder="e.g., John Doe" @bind="registerFullName" @bind:after="GenerateEmail" />
+                    <input type="text" class="form-control-custom" placeholder="e.g., John Doe" value="@registerFullName" @oninput="OnFullNameInput" />
                 </div>
 
                 <div class="form-group">
@@ -523,6 +523,8 @@
         }
     }
 
+    private int randomEmailDigit = 0;
+
     private void OpenRegisterModal()
     {
         registerFullName = "";
@@ -533,25 +535,21 @@
         registerDeptId = "";
         schoolDepartments = new();
         validationError = "";
+        randomEmailDigit = new Random().Next(1000, 10000);
         showRegisterModal = true;
     }
 
-    private async Task GenerateEmail()
+    private void OnFullNameInput(ChangeEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(registerFullName)) return;
+        registerFullName = e.Value?.ToString() ?? "";
         
-        string baseEmail = registerFullName.ToLower().Replace(" ", "") + "@helloone.edu.com";
-        var userExists = await UserManager.FindByEmailAsync(baseEmail);
-        
-        if (userExists == null)
+        if (string.IsNullOrWhiteSpace(registerFullName))
         {
-            registerEmail = baseEmail;
+            registerEmail = "";
         }
         else
         {
-            Random rnd = new Random();
-            int randomDigit = rnd.Next(1000, 10000);
-            registerEmail = registerFullName.ToLower().Replace(" ", "") + randomDigit.ToString() + "@helloone.edu.com";
+            registerEmail = registerFullName.ToLower().Replace(" ", "") + randomEmailDigit.ToString() + "@helloone.edu.com";
         }
     }
 
