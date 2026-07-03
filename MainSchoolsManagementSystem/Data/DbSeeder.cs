@@ -17,17 +17,8 @@ namespace MainSchoolsManagementSystem.Data
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-            // Ensure database is created/migrated
-            // SQLite: Use EnsureCreated (migrations contain SQL Server-specific syntax)
-            // SQL Server: Use MigrateAsync to apply migrations
-            if (context.Database.IsSqlite())
-            {
-                await context.Database.EnsureCreatedAsync();
-            }
-            else
-            {
-                await context.Database.MigrateAsync();
-            }
+            // Ensure database is created and migrated
+            await context.Database.MigrateAsync();
 
             // 1. Seed Roles
             string[] roles = { "Admin", "Director", "Headmaster", "Officer", "Teacher", "Assistant" };
