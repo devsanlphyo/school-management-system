@@ -238,7 +238,7 @@
 
         var allPlans = await DbContext.LessonPlans
             .Include(lp => lp.Teacher)
-            .Where(lp => lp.Teacher.SchoolId == schoolId.Value)
+            .Where(lp => lp.Teacher != null && lp.Teacher.SchoolId == schoolId.Value)
             .OrderByDescending(lp => lp.UploadedAt)
             .ToListAsync();
 

@@ -290,7 +290,7 @@
     {
         var allPlans = await DbContext.LessonPlans
             .Include(lp => lp.Teacher)
-                .ThenInclude(t => t.School)
+                .ThenInclude(t => t!.School)
             .OrderByDescending(lp => lp.UploadedAt)
             .ToListAsync();
 

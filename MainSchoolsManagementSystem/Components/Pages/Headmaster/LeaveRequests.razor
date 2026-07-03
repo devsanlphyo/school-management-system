@@ -140,7 +140,7 @@
 
         var allRequests = await DbContext.LeaveRequests
             .Include(lr => lr.User)
-            .Where(lr => lr.User.SchoolId == schoolId.Value)
+            .Where(lr => lr.User != null && lr.User.SchoolId == schoolId.Value)
             .OrderByDescending(lr => lr.SubmittedAt)
             .ToListAsync();
 

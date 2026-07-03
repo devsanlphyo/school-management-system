@@ -167,7 +167,7 @@
 
         // Fetch attendance records for the selected date
         var attendanceRecords = await DbContext.Attendances
-            .Where(a => a.User.SchoolId == schoolId.Value && a.Date.Date == selectedDate.Date)
+            .Where(a => a.User != null && a.User.SchoolId == schoolId.Value && a.Date.Date == selectedDate.Date)
             .ToListAsync();
 
         foreach (var record in records)

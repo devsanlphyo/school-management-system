@@ -137,7 +137,7 @@
     {
         var allRequests = await DbContext.LeaveRequests
             .Include(lr => lr.User)
-                .ThenInclude(u => u.School)
+                .ThenInclude(u => u!.School)
             .OrderByDescending(lr => lr.SubmittedAt)
             .ToListAsync();
 

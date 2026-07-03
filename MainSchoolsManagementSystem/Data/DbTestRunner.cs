@@ -125,10 +125,10 @@ namespace MainSchoolsManagementSystem.Data
                 // Query Teacher Assignments (joining Teacher, Class, Subject, Department, and School)
                 var assignments = await context.TeacherAssignments
                     .Include(ta => ta.Teacher)
-                    .ThenInclude(t => t.School)
+                    .ThenInclude(t => t!.School)
                     .Include(ta => ta.Class)
                     .Include(ta => ta.Subject)
-                    .ThenInclude(s => s.Department)
+                    .ThenInclude(s => s!.Department)
                     .Where(ta => ta.TeacherId == teacher.Id)
                     .ToListAsync();
 
@@ -144,8 +144,8 @@ namespace MainSchoolsManagementSystem.Data
                 // Query Lesson Plans
                 var plansInSchool = await context.LessonPlans
                     .Include(lp => lp.Teacher)
-                    .ThenInclude(t => t.School)
-                    .Where(lp => lp.Teacher.SchoolId == school.Id)
+                    .ThenInclude(t => t!.School)
+                    .Where(lp => lp.Teacher != null && lp.Teacher.SchoolId == school.Id)
                     .ToListAsync();
 
                 Console.WriteLine($"Found {plansInSchool.Count} Lesson Plan(s) for School '{school.Name}':");

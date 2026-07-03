@@ -426,7 +426,6 @@
     private string registerPassword = "";
     private string registerRole = "Headmaster";
     private string registerSchoolId = "";
-    private string registerDeptId = "";
     private List<Department> schoolDepartments = new();
 
     private bool showEditUserModal = false;
@@ -492,7 +491,7 @@
         admins.Clear();
 
         var adminRoleNames = new List<string> { "Admin", "Headmaster", "Director", "Officer", "Teacher", "Assistant" };
-        var roles = await context.Roles.Where(r => adminRoleNames.Contains(r.Name)).ToListAsync();
+        var roles = await context.Roles.Where(r => r.Name != null && adminRoleNames.Contains(r.Name)).ToListAsync();
         var roleIds = roles.Select(r => r.Id).ToList();
 
         var userRoles = await context.UserRoles.Where(ur => roleIds.Contains(ur.RoleId)).ToListAsync();
@@ -532,7 +531,6 @@
         registerPassword = "";
         registerRole = "Headmaster";
         registerSchoolId = "";
-        registerDeptId = "";
         schoolDepartments = new();
         validationError = "";
         randomEmailDigit = new Random().Next(1000, 10000);
@@ -574,7 +572,6 @@
     private async Task OnRegisterSchoolChanged(ChangeEventArgs e)
     {
         registerSchoolId = e.Value?.ToString() ?? "";
-        registerDeptId = "";
         if (int.TryParse(registerSchoolId, out int schoolId))
         {
             using var context = await DbFactory.CreateDbContextAsync();
@@ -641,7 +638,7 @@
         teacherAssignments = await context.TeacherAssignments
             .Include(ta => ta.Class)
             .Include(ta => ta.Subject)
-            .ThenInclude(s => s.Department)
+            .ThenInclude(s => s!.Department)
             .Where(ta => ta.TeacherId == teacher.Id)
             .ToListAsync();
 
@@ -821,7 +818,7 @@
         teacherAssignments = await context.TeacherAssignments
             .Include(ta => ta.Class)
             .Include(ta => ta.Subject)
-            .ThenInclude(s => s.Department)
+            .ThenInclude(s => s!.Department)
             .Where(ta => ta.TeacherId == selectedTeacher.Id)
             .ToListAsync();
 
@@ -845,7 +842,7 @@
             teacherAssignments = await context.TeacherAssignments
                 .Include(ta => ta.Class)
                 .Include(ta => ta.Subject)
-                .ThenInclude(s => s.Department)
+                .ThenInclude(s => s!.Department)
                 .Where(ta => ta.TeacherId == selectedTeacher.Id)
                 .ToListAsync();
         }
