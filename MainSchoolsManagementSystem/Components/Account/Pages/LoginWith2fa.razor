@@ -1,13 +1,16 @@
-﻿@page "/Account/LoginWith2fa"
+@page "/Account/LoginWith2fa"
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
 @using MainSchoolsManagementSystem.Data
 
+@using MainSchoolsManagementSystem.Features.TrustedDevices.Services
+
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<LoginWith2fa> Logger
+@inject ITrustedDeviceService TrustedDeviceService
 
 <PageTitle>Two-factor authentication</PageTitle>
 
@@ -57,6 +60,9 @@
     [SupplyParameterFromQuery]
     private bool RememberMe { get; set; }
 
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
         // Ensure the user has gone through the username & password screen first
@@ -67,11 +73,27 @@
     private async Task OnValidSubmitAsync()
     {
         var authenticatorCode = Input.TwoFactorCode!.Replace(" ", string.Empty).Replace("-", string.Empty);
-        var result = await SignInManager.TwoFactorAuthenticatorSignInAsync(authenticatorCode, RememberMe, Input.RememberMachine);
+        // We pass false to Identity's remember machine because we use our own Trusted Devices
+        var result = await SignInManager.TwoFactorAuthenticatorSignInAsync(authenticatorCode, RememberMe, false);
         var userId = await UserManager.GetUserIdAsync(user);
 
         if (result.Succeeded)
         {
+            if (Input.RememberMachine)
+            {
+                var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
+                var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "";
+                var rawToken = await TrustedDeviceService.TrustDeviceAsync(userId, userAgent, ip);
+                
+                HttpContext.Response.Cookies.Append("TrustedDeviceToken", rawToken, new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = true,
+                    SameSite = SameSiteMode.Strict,
+                    Expires = DateTimeOffset.UtcNow.AddDays(30)
+                });
+            }
+
             Logger.LogInformation("User with ID '{UserId}' logged in with 2fa.", userId);
             RedirectManager.RedirectTo(ReturnUrl);
         }

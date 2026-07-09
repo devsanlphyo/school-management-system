@@ -1,8 +1,0 @@
-@page "/officer/feed/create"
-@layout MainSchoolsManagementSystem.Components.Layout.OfficerLayout
-@using MainSchoolsManagementSystem.Components.Shared
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Officer")]
-
-<PageTitle>Create Post - Officer</PageTitle>
-
-<CreateFeedPostComponent CurrentRole="Officer" />

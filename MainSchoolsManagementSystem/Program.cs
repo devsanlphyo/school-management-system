@@ -4,6 +4,8 @@ using MainSchoolsManagementSystem.Data;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+// Services are resolved via global usings in GlobalUsings.cs
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +52,15 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders();
+
+builder.Services.AddScoped<ISchoolService, SchoolService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ISystemSettingService, SystemSettingService>();
+builder.Services.AddScoped<ILessonPlanService, LessonPlanService>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<ILeaveRequestService, LeaveRequestService>();
+builder.Services.AddScoped<IFeedService, FeedService>();
+builder.Services.AddScoped<ITrustedDeviceService, TrustedDeviceService>();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
@@ -252,6 +263,29 @@ app.MapPost("/api/feed/upload", async (
 })
 .RequireAuthorization();
 
+app.MapGet("/api/feed/media/{storedFileName}/view", (
+    string storedFileName,
+    System.Security.Claims.ClaimsPrincipal user,
+    IWebHostEnvironment env) =>
+{
+    var currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    if (string.IsNullOrEmpty(currentUserId)) return (IResult)Results.Unauthorized();
+
+    var uploadsPath = Path.Combine(env.ContentRootPath, "uploads", "feed");
+    var filePath = Path.Combine(uploadsPath, storedFileName);
+
+    if (!System.IO.File.Exists(filePath)) return Results.NotFound();
+
+    var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+    if (!provider.TryGetContentType(filePath, out var contentType))
+    {
+        contentType = "application/octet-stream";
+    }
+
+    return Results.File(filePath, contentType); // Served inline for rendering inside img/video tags
+})
+.RequireAuthorization();
+
 app.MapGet("/api/feed/media/{storedFileName}/download", (
     string storedFileName,
     System.Security.Claims.ClaimsPrincipal user,
@@ -271,7 +305,7 @@ app.MapGet("/api/feed/media/{storedFileName}/download", (
         contentType = "application/octet-stream";
     }
 
-    return Results.File(filePath, contentType, fileDownloadName: storedFileName);
+    return Results.File(filePath, contentType, fileDownloadName: storedFileName); // Triggers download prompt
 })
 .RequireAuthorization();
 

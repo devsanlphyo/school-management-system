@@ -1,0 +1,5 @@
+@page "/teacher/attendance"
+@layout MainSchoolsManagementSystem.Components.Layout.TeacherLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Teacher")]
+
+<MainSchoolsManagementSystem.Features.Attendance.Components.AttendanceTracker />

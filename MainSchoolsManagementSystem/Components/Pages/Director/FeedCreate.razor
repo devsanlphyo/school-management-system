@@ -1,8 +1,0 @@
-@page "/director/feed/create"
-@layout MainSchoolsManagementSystem.Components.Layout.DirectorLayout
-@using MainSchoolsManagementSystem.Components.Shared
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Director")]
-
-<PageTitle>Create Post - Director</PageTitle>
-
-<CreateFeedPostComponent CurrentRole="Director" />

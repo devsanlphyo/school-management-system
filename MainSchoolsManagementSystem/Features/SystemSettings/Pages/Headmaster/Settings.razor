@@ -1,0 +1,16 @@
+@page "/headmaster/settings"
+@layout MainSchoolsManagementSystem.Components.Layout.HeadmasterLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Headmaster")]
+
+<PageTitle>Settings — HelloTwo</PageTitle>
+
+<div class="d-flex flex-column" style="max-width: 600px; gap: 2rem;">
+    <div>
+        <h2 style="font-size: 1.85rem; font-weight: 900; color: var(--text-primary); margin-bottom: 0.4rem;">Settings</h2>
+        <p style="color: var(--text-muted); font-size: 0.92rem;">Personalize your HelloTwo experience.</p>
+    </div>
+
+    <div class="glass-panel" style="display: flex; flex-direction: column; gap: 1.75rem; padding: 2rem;">
+        <MainSchoolsManagementSystem.Components.Shared.ThemeSettings />
+    </div>
+</div>

@@ -1,0 +1,96 @@
+@page "/Account/Manage/TrustedDevices"
+@using MainSchoolsManagementSystem.Data
+@using MainSchoolsManagementSystem.Features.TrustedDevices.Services
+@using Microsoft.AspNetCore.Identity
+
+@inject UserManager<ApplicationUser> UserManager
+@inject ITrustedDeviceService TrustedDeviceService
+@inject IdentityUserAccessor UserAccessor
+@inject NavigationManager NavigationManager
+@inject ILogger<TrustedDevices> Logger
+
+<PageTitle>Trusted Devices</PageTitle>
+
+<h3>Trusted Devices</h3>
+<StatusMessage Message="@message" />
+
+<p>Here you can view and revoke devices that you have trusted to bypass two-factor authentication.</p>
+
+@if (devices == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!devices.Any())
+{
+    <p>You have no trusted devices.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Device</th>
+                    <th>IP Address</th>
+                    <th>Last Used</th>
+                    <th>Expires</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var device in devices)
+                {
+                    <tr>
+                        <td>@device.DeviceName</td>
+                        <td>@device.IpAddress</td>
+                        <td>@device.LastUsedAt.ToLocalTime().ToString("g")</td>
+                        <td>
+                            @if (device.ExpiresAt < DateTimeOffset.UtcNow)
+                            {
+                                <span class="text-danger">Expired</span>
+                            }
+                            else
+                            {
+                                @device.ExpiresAt.ToLocalTime().ToString("g")
+                            }
+                        </td>
+                        <td>
+                            <form @formname="@($"revoke-{device.Id}")" @onsubmit="() => RevokeDeviceAsync(device.Id)" method="post">
+                                <AntiforgeryToken />
+                                <button type="submit" class="btn btn-sm btn-danger">Revoke</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private ApplicationUser user = default!;
+    private List<UserTrustedDevice>? devices;
+    private string? message;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = await UserAccessor.GetRequiredUserAsync(HttpContext);
+        await LoadDevicesAsync();
+    }
+
+    private async Task LoadDevicesAsync()
+    {
+        devices = await TrustedDeviceService.GetUserDevicesAsync(user.Id);
+    }
+
+    private async Task RevokeDeviceAsync(Guid deviceId)
+    {
+        await TrustedDeviceService.RevokeDeviceAsync(user.Id, deviceId);
+        Logger.LogInformation("User {UserId} revoked device {DeviceId}.", user.Id, deviceId);
+        message = "Device revoked successfully.";
+        await LoadDevicesAsync();
+    }
+}

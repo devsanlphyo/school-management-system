@@ -1,0 +1,7 @@
+@page "/headmaster/feed"
+@layout MainSchoolsManagementSystem.Components.Layout.HeadmasterLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Headmaster")]
+
+<PageTitle>Feed - Headmaster</PageTitle>
+
+<MainSchoolsManagementSystem.Features.Feed.Components.FeedComponent CurrentRole="Headmaster" />

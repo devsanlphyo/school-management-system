@@ -1,0 +1,421 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using System.Net.Http.Headers
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using MainSchoolsManagementSystem.Features.Users.Models
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@inject IFeedService FeedService
+@inject IJSRuntime JSRuntime
+@inject UserManager<ApplicationUser> UserManager
+@implements IAsyncDisposable
+
+<div class="create-post-layout-container">
+  
+  <header class="create-post-navbar">
+    <div class="navbar-left">
+      <button class="navbar-back-btn" @onclick="GoBack" title="Go back to Feed">
+        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+    </div>
+    <div class="navbar-center">
+      <h2 style="font-weight: 400;">@(PostId.HasValue ? "Edit Post" : "Create Post")</h2>
+    </div>
+    <div class="navbar-right">
+      <!-- Empty right side for spacing symmetry -->
+    </div>
+  </header>
+
+  
+  <div class="create-post-body">
+    <div class="create-post-content-card">
+      
+      <!-- User profile header -->
+      <div class="create-post-user-header">
+        <div class="feed-avatar">@AvatarInitials</div>
+        <div class="user-header-info">
+          <h4>@CurrentUserName</h4>
+          <div class="visibility-selector-container">
+            <button class="visibility-pill-btn" @onclick="ToggleVisibilityDropdown" type="button">
+              @if (selectedVisibility == PostVisibility.Public)
+              {
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+                <span>Public</span>
+              }
+              else
+              {
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span>Private</span>
+              }
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: 2px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+
+            @if (showVisibilityDropdown)
+            {
+              <div class="visibility-menu-dropdown">
+                <div class="dropdown-item-option" @onclick="() => SelectVisibility(PostVisibility.Public)">
+                  <div class="option-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                  </div>
+                  <div class="option-details">
+                    <span class="option-title">Public</span>
+                    <span class="option-subtitle">Anyone can see this post</span>
+                  </div>
+                </div>
+                <div class="dropdown-item-option" @onclick="() => SelectVisibility(PostVisibility.Private)">
+                  <div class="option-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                  </div>
+                  <div class="option-details">
+                    <span class="option-title">Private</span>
+                    <span class="option-subtitle">Only you can see this post</span>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Text input area -->
+      <div class="text-input-area-container">
+        <textarea class="post-textarea-field" 
+                  placeholder="What's on your mind..." 
+                  @bind="postContent" 
+                  @bind:event="oninput"
+                  style="font-size: 0.9rem"></textarea>
+      </div>
+
+      <!-- Media Attachments List -->
+      @if (selectedFiles.Any())
+      {
+        <div class="media-preview-container">
+          <div class="media-preview-grid count-@Math.Min(4, selectedFiles.Count)">
+            @for (int i = 0; i < selectedFiles.Count; i++)
+            {
+              int index = i;
+              var file = selectedFiles[i];
+              bool isLastAndMore = i == 3 && selectedFiles.Count > 4;
+              if (i > 3) continue;
+
+              <div class="preview-item">
+                <button type="button" class="remove-preview-btn" @onclick="() => RemoveFile(index)" title="Remove attachment">
+                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+                @if (file.Type != null && file.Type.StartsWith("image/"))
+                {
+                  <img src="@file.PreviewUrl" class="preview-image" />
+                }
+                else if (file.Type != null && file.Type.StartsWith("video/"))
+                {
+                  <video src="@file.PreviewUrl" class="preview-video" muted></video>
+                }
+                else
+                {
+                  <div class="preview-file-fallback">
+                    <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="1.5" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                    <span class="file-fallback-name">@file.Name</span>
+                  </div>
+                }
+
+                @if (isLastAndMore)
+                {
+                  <div class="more-attachments-overlay">+@(selectedFiles.Count - 4)</div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      @if (existingMedia != null && existingMedia.Any())
+      {
+        <div class="media-preview-container" style="margin-top: 1rem; opacity: 0.85;">
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; font-weight: 600;">Existing Attachments (Read-Only)</p>
+          <div class="media-preview-grid count-@Math.Min(4, existingMedia.Count)">
+            @foreach (var media in existingMedia)
+            {
+              <div class="preview-item">
+                @if (media.ContentType != null && media.ContentType.StartsWith("image/"))
+                {
+                  <img src="/api/feed/media/@media.StoredFileName/view" class="preview-image" />
+                }
+                else if (media.ContentType != null && media.ContentType.StartsWith("video/"))
+                {
+                  <video src="/api/feed/media/@media.StoredFileName/view" class="preview-video" muted></video>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+    </div>
+  </div>
+
+  <!-- Bottom Action Bar / Footer -->
+  <footer class="create-post-footer">
+    <div class="create-post-footer-content">
+      <!-- Add to your post bar -->
+      <div class="add-attachments-row">
+        <span class="add-attachments-label">Add to your post</span>
+        <div class="add-attachments-options">
+          <button class="attachment-option-btn photo" onclick="document.getElementById('feedFileInputImage').click()" title="Image" type="button">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#45BD62"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"></path></svg>
+          </button>
+          <button class="attachment-option-btn video" onclick="document.getElementById('feedFileInputVideo').click()" title="Video" type="button">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#F02849"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <input type="file" id="feedFileInputImage" accept="image/*" multiple style="display: none;" onchange="window.feedUpload.filesSelected(this)" />
+      <input type="file" id="feedFileInputVideo" accept="video/*" multiple style="display: none;" onchange="window.feedUpload.filesSelected(this)" />
+
+      @if (!string.IsNullOrEmpty(errorMessage))
+      {
+        <div class="submit-error-banner">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          <span style="margin-left: 0.5rem;">@errorMessage</span>
+        </div>
+      }
+
+      @if (isSubmitting)
+      {
+        <div class="upload-progress-bar-container">
+          <div class="progress-bar-fill"></div>
+        </div>
+        <p class="upload-progress-text">Uploading files and creating post...</p>
+      }
+
+      <!-- Submit Button -->
+      <button class="post-submit-btn" 
+              @onclick="SubmitPost" 
+              disabled="@(isSubmitting || (string.IsNullOrWhiteSpace(postContent) && !selectedFiles.Any() && !(existingMedia?.Any() ?? false)))">
+        @(isSubmitting ? (PostId.HasValue ? "Saving..." : "Posting...") : (PostId.HasValue ? "Save" : "Post"))
+      </button>
+    </div>
+  </footer>
+</div>
+
+
+
+@code {
+    [Parameter] public int? PostId { get; set; }
+    [Parameter] public string CurrentRole { get; set; } = "";
+    
+    private string postContent = "";
+    private PostVisibility selectedVisibility = PostVisibility.Public;
+    private bool showVisibilityDropdown = false;
+    private List<FileInfo> selectedFiles = new();
+    private List<FeedPostMedia> existingMedia = new();
+    
+    private void ToggleVisibilityDropdown()
+    {
+        showVisibilityDropdown = !showVisibilityDropdown;
+    }
+    
+    private void SelectVisibility(PostVisibility visibility)
+    {
+        selectedVisibility = visibility;
+        showVisibilityDropdown = false;
+    }
+    private string? currentUserId;
+    private string CurrentUserName = "User";
+    private string AvatarInitials = "U";
+    private bool isSubmitting = false;
+    private string errorMessage = "";
+    private const long MAX_FILE_SIZE = 210 * 1024 * 1024; // ~210MB
+    private DotNetObjectReference<CreateFeedPostComponent>? dotNetRef;
+
+    public class FileInfo
+    {
+        public string Name { get; set; } = "";
+        public long Size { get; set; }
+        public string Type { get; set; } = "";
+        public string PreviewUrl { get; set; } = "";
+    }
+
+    public class UploadResult
+    {
+        public string fileName { get; set; } = "";
+        public string storedFileName { get; set; } = "";
+        public string contentType { get; set; } = "";
+        public long fileSize { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var appUser = await UserManager.GetUserAsync(user);
+            if (appUser != null && !string.IsNullOrWhiteSpace(appUser.FullName))
+            {
+                CurrentUserName = appUser.FullName;
+            }
+            else
+            {
+                CurrentUserName = user.Identity.Name ?? "User";
+            }
+            AvatarInitials = CurrentUserName.Substring(0, 1).ToUpper();
+        }
+
+        if (PostId.HasValue)
+        {
+            var post = await FeedService.GetPostByIdAsync(PostId.Value);
+            if (post != null)
+            {
+                postContent = post.Content;
+                selectedVisibility = post.Visibility;
+                existingMedia = post.MediaItems?.ToList() ?? new();
+            }
+        }
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            dotNetRef = DotNetObjectReference.Create(this);
+            await JSRuntime.InvokeVoidAsync("window.feedUpload.init", dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public void OnFilesSelected(List<FileInfo> files)
+    {
+        errorMessage = "";
+        if (files.Count > 20)
+        {
+            errorMessage = "Maximum 20 files allowed.";
+            selectedFiles.Clear();
+            StateHasChanged();
+            return;
+        }
+
+        foreach (var file in files)
+        {
+            if (file.Size > MAX_FILE_SIZE)
+            {
+                errorMessage = $"File {file.Name} is too large (max 200MB).";
+                selectedFiles.Clear();
+                StateHasChanged();
+                return;
+            }
+        }
+        
+        selectedFiles = files;
+        StateHasChanged();
+    }
+    
+    private async Task RemoveFile(int index)
+    {
+        await JSRuntime.InvokeVoidAsync("window.feedUpload.removeFile", index);
+    }
+
+    private async Task ClearFiles()
+    {
+        selectedFiles.Clear();
+        await JSRuntime.InvokeVoidAsync("window.feedUpload.clearFiles");
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo($"/{CurrentRole.ToLower()}/feed");
+    }
+    
+    private async Task SubmitPost()
+    {
+        if (string.IsNullOrWhiteSpace(postContent) && !selectedFiles.Any() && !existingMedia.Any())
+        {
+            errorMessage = "Please enter some text or attach files.";
+            return;
+        }
+        if (currentUserId == null) return;
+        
+        isSubmitting = true;
+        errorMessage = "";
+        StateHasChanged();
+        
+        try
+        {
+            List<UploadResult>? uploadResults = null;
+            if (selectedFiles.Any())
+            {
+                uploadResults = await JSRuntime.InvokeAsync<List<UploadResult>>("window.feedUpload.uploadFiles");
+            }
+            
+            if (PostId.HasValue)
+            {
+                await FeedService.UpdatePostContentAndVisibilityAsync(PostId.Value, postContent, selectedVisibility);
+                
+                if (uploadResults != null && uploadResults.Any())
+                {
+                    int sortOrder = existingMedia.Count;
+                    foreach(var res in uploadResults)
+                    {
+                        await FeedService.AddMediaToPostAsync(
+                            PostId.Value,
+                            res.fileName,
+                            res.storedFileName,
+                            res.contentType,
+                            res.fileSize,
+                            sortOrder++
+                        );
+                    }
+                }
+            }
+            else
+            {
+                var post = await FeedService.CreatePostAsync(currentUserId, postContent, selectedVisibility);
+                
+                if (uploadResults != null && uploadResults.Any())
+                {
+                    int sortOrder = 0;
+                    foreach(var res in uploadResults)
+                    {
+                        await FeedService.AddMediaToPostAsync(
+                            post.Id,
+                            res.fileName,
+                            res.storedFileName,
+                            res.contentType,
+                            res.fileSize,
+                            sortOrder++
+                        );
+                    }
+                }
+            }
+            
+            await ClearFiles();
+            NavigationManager.NavigateTo($"/{CurrentRole.ToLower()}/feed");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error saving post: " + ex.Message;
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+        dotNetRef?.Dispose();
+        try {
+            await JSRuntime.InvokeVoidAsync("window.feedUpload.init", null);
+        } catch { }
+    }
+}

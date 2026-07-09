@@ -1,0 +1,7 @@
+@page "/assistant/feed"
+@layout MainSchoolsManagementSystem.Components.Layout.AssistantLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Assistant")]
+
+<PageTitle>Feed - Assistant</PageTitle>
+
+<MainSchoolsManagementSystem.Features.Feed.Components.FeedComponent CurrentRole="Assistant" />

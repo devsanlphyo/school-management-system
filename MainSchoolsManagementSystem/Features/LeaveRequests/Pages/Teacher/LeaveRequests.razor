@@ -1,0 +1,5 @@
+@page "/teacher/leave-requests"
+@layout MainSchoolsManagementSystem.Components.Layout.TeacherLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Teacher")]
+
+<MainSchoolsManagementSystem.Features.LeaveRequests.Components.LeaveRequestTracker />

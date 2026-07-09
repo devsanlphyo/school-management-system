@@ -19,6 +19,7 @@ namespace MainSchoolsManagementSystem.Data
         public DbSet<FeedPostMedia> FeedPostMedias { get; set; }
         public DbSet<FeedPostReaction> FeedPostReactions { get; set; }
         public DbSet<FeedPostComment> FeedPostComments { get; set; }
+        public DbSet<UserTrustedDevice> UserTrustedDevices { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -116,7 +117,7 @@ namespace MainSchoolsManagementSystem.Data
                 .HasOne(fpr => fpr.User)
                 .WithMany()
                 .HasForeignKey(fpr => fpr.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Cascade);
 
             builder.Entity<FeedPostReaction>()
                 .HasIndex(fpr => new { fpr.FeedPostId, fpr.UserId })
@@ -132,7 +133,7 @@ namespace MainSchoolsManagementSystem.Data
                 .HasOne(fpc => fpc.Author)
                 .WithMany()
                 .HasForeignKey(fpc => fpc.AuthorId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

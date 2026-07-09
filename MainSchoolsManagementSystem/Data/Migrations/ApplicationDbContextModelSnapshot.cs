@@ -146,6 +146,9 @@ namespace MainSchoolsManagementSystem.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Visibility")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorId");
@@ -423,6 +426,49 @@ namespace MainSchoolsManagementSystem.Migrations
                     b.ToTable("TeacherAssignments");
                 });
 
+            modelBuilder.Entity("MainSchoolsManagementSystem.Data.UserTrustedDevice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeviceHash")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeviceName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("LastUsedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserTrustedDevices");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -605,7 +651,7 @@ namespace MainSchoolsManagementSystem.Migrations
                     b.HasOne("MainSchoolsManagementSystem.Data.ApplicationUser", "Author")
                         .WithMany()
                         .HasForeignKey("AuthorId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("MainSchoolsManagementSystem.Data.FeedPost", "FeedPost")
@@ -641,7 +687,7 @@ namespace MainSchoolsManagementSystem.Migrations
                     b.HasOne("MainSchoolsManagementSystem.Data.ApplicationUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("FeedPost");
@@ -730,6 +776,17 @@ namespace MainSchoolsManagementSystem.Migrations
                     b.Navigation("Subject");
 
                     b.Navigation("Teacher");
+                });
+
+            modelBuilder.Entity("MainSchoolsManagementSystem.Data.UserTrustedDevice", b =>
+                {
+                    b.HasOne("MainSchoolsManagementSystem.Data.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

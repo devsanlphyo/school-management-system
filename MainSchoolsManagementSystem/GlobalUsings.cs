@@ -1,0 +1,16 @@
+global using MainSchoolsManagementSystem.Features.Attendance.Models;
+global using MainSchoolsManagementSystem.Features.Attendance.Services;
+global using MainSchoolsManagementSystem.Features.Feed.Models;
+global using MainSchoolsManagementSystem.Features.Feed.Services;
+global using MainSchoolsManagementSystem.Features.LeaveRequests.Models;
+global using MainSchoolsManagementSystem.Features.LeaveRequests.Services;
+global using MainSchoolsManagementSystem.Features.LessonPlans.Models;
+global using MainSchoolsManagementSystem.Features.LessonPlans.Services;
+global using MainSchoolsManagementSystem.Features.Schools.Models;
+global using MainSchoolsManagementSystem.Features.Schools.Services;
+global using MainSchoolsManagementSystem.Features.Users.Models;
+global using MainSchoolsManagementSystem.Features.Users.Services;
+global using MainSchoolsManagementSystem.Features.TrustedDevices.Models;
+global using MainSchoolsManagementSystem.Features.TrustedDevices.Services;
+global using MainSchoolsManagementSystem.Features.SystemSettings.Models;
+global using MainSchoolsManagementSystem.Features.SystemSettings.Services;

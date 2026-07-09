@@ -1,8 +1,0 @@
-@page "/teacher/feed/create"
-@layout MainSchoolsManagementSystem.Components.Layout.TeacherLayout
-@using MainSchoolsManagementSystem.Components.Shared
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Teacher")]
-
-<PageTitle>Create Post - Teacher</PageTitle>
-
-<CreateFeedPostComponent CurrentRole="Teacher" />

@@ -1,0 +1,192 @@
+@page "/headmaster/attendance"
+@layout MainSchoolsManagementSystem.Components.Layout.HeadmasterLayout
+@attribute [Authorize(Roles = "Admin,Headmaster,Officer")]
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject MainSchoolsManagementSystem.Features.Attendance.Services.IAttendanceService AttendanceService
+@inject MainSchoolsManagementSystem.Features.Users.Services.IUserService UserService
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+
+<PageTitle>Staff Attendance</PageTitle>
+
+<div class="d-flex flex-column gap-4">
+    <!-- Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Daily Attendance</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">Track and manage staff attendance records.</p>
+        </div>
+        
+        <!-- Date Selector -->
+        <div class="glass-panel" style="padding: 0.5rem 1rem; display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Date:</span>
+            <input type="date" class="form-control-custom" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;" 
+                   @bind-value="selectedDate" @bind-value:event="onchange" @oninput="OnDateChanged" />
+        </div>
+    </div>
+
+    <!-- Attendance Stats -->
+    <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+        <div class="stat-card success" style="padding: 1rem 1.25rem; gap: 0.25rem;">
+            <span class="stat-label" style="font-size: 0.75rem;">Present</span>
+            <span class="stat-value" style="font-size: 1.5rem;">@presentCount</span>
+        </div>
+        <div class="stat-card warning" style="padding: 1rem 1.25rem; gap: 0.25rem;">
+            <span class="stat-label" style="font-size: 0.75rem;">Late</span>
+            <span class="stat-value" style="font-size: 1.5rem;">@lateCount</span>
+        </div>
+        <div class="stat-card danger" style="padding: 1rem 1.25rem; gap: 0.25rem;">
+            <span class="stat-label" style="font-size: 0.75rem;">Absent</span>
+            <span class="stat-value" style="font-size: 1.5rem;">@absentCount</span>
+        </div>
+    </div>
+
+    <!-- Attendance Grid -->
+    <div class="glass-panel" style="padding: 0;">
+        <div class="table-container">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th>Staff Member</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Check-in Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (staffAttendance.Any())
+                    {
+                        foreach (var record in staffAttendance)
+                        {
+                            <tr>
+                                <td>
+                                    <div style="font-weight: 600; color: var(--text-primary);">@record.User.FullName</div>
+                                </td>
+                                <td>
+                                    <span class="badge" style="background-color: var(--border-color); color: var(--text-secondary);">@record.Role</span>
+                                </td>
+                                <td>
+                                    @if (record.Attendance == null)
+                                    {
+                                        <span class="badge badge-absent">Absent (No Log)</span>
+                                    }
+                                    else
+                                    {
+                                        switch (record.Attendance.Status)
+                                        {
+                                            case AttendanceStatus.Present:
+                                                <span class="badge badge-present">Present</span>
+                                                break;
+                                            case AttendanceStatus.Late:
+                                                <span class="badge badge-late">Late</span>
+                                                break;
+                                            case AttendanceStatus.Absent:
+                                                <span class="badge badge-absent">Absent</span>
+                                                break;
+                                        }
+                                    }
+                                </td>
+                                <td>
+                                    @(record.Attendance?.CheckedInAt?.ToLocalTime().ToString("hh:mm tt") ?? "—")
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="4" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                No staff registered in this school.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private int? schoolId;
+    private DateTime selectedDate = DateTime.Today;
+    private List<StaffAttendanceRecord> staffAttendance = new();
+
+    private int presentCount = 0;
+    private int lateCount = 0;
+    private int absentCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var appUser = await UserManager.GetUserAsync(user);
+            if (appUser != null && appUser.SchoolId.HasValue)
+            {
+                schoolId = appUser.SchoolId.Value;
+                await LoadAttendanceData();
+            }
+        }
+    }
+
+    private async Task OnDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var date))
+        {
+            selectedDate = date;
+            await LoadAttendanceData();
+        }
+    }
+
+    private async Task LoadAttendanceData()
+    {
+        if (!schoolId.HasValue) return;
+
+        // Fetch staff in school
+        var allTeachers = await UserService.GetUsersByRolesAsync(new List<string> { "Teacher" });
+        var allOfficers = await UserService.GetUsersByRolesAsync(new List<string> { "Officer" });
+        var allAssistants = await UserService.GetUsersByRolesAsync(new List<string> { "Assistant" });
+
+        var records = new List<StaffAttendanceRecord>();
+        
+        foreach (var u in allTeachers.Where(t => t.SchoolId == schoolId.Value)) 
+            records.Add(new StaffAttendanceRecord { User = u, Role = "Teacher" });
+            
+        foreach (var u in allOfficers.Where(t => t.SchoolId == schoolId.Value)) 
+            records.Add(new StaffAttendanceRecord { User = u, Role = "Officer" });
+            
+        foreach (var u in allAssistants.Where(t => t.SchoolId == schoolId.Value)) 
+            records.Add(new StaffAttendanceRecord { User = u, Role = "Assistant" });
+
+        // Fetch attendance records for the selected date
+        var attendanceRecords = await AttendanceService.GetAttendancesBySchoolAndDateAsync(schoolId.Value, selectedDate);
+
+        foreach (var record in records)
+        {
+            record.Attendance = attendanceRecords.FirstOrDefault(a => a.UserId == record.User.Id);
+        }
+        
+        staffAttendance = records;
+
+        CalculateStats();
+    }
+
+    private void CalculateStats()
+    {
+        presentCount = staffAttendance.Count(r => r.Attendance?.Status == AttendanceStatus.Present);
+        lateCount = staffAttendance.Count(r => r.Attendance?.Status == AttendanceStatus.Late);
+        
+        // Count as absent if status is Absent or if there is no attendance record at all
+        absentCount = staffAttendance.Count(r => r.Attendance == null || r.Attendance.Status == AttendanceStatus.Absent);
+    }
+
+    public class StaffAttendanceRecord
+    {
+        public UserDisplayDto User { get; set; } = null!;
+        public string Role { get; set; } = "";
+        public MainSchoolsManagementSystem.Features.Attendance.Models.Attendance? Attendance { get; set; }
+    }
+}

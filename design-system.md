@@ -88,6 +88,112 @@ All tokens are defined in `wwwroot/app.css` under `:root`.
 |---|---|
 | `--transition-smooth` | `all 0.15s ease` |
 
+### 2.6 Dark Mode
+
+Dark mode is activated by setting `data-theme="dark"` on the `<html>` or `<body>` element. The system also respects `prefers-color-scheme: dark` automatically unless `data-theme="light"` is explicitly set.
+
+#### Activation
+
+```html
+<!-- Manual toggle -->
+<html data-theme="dark">
+
+<!-- Force light mode (overrides OS preference) -->
+<html data-theme="light">
+
+<!-- Auto (follows OS preference) — omit the attribute entirely -->
+<html>
+```
+
+**JavaScript toggle:**
+```js
+function toggleTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    html.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+    localStorage.setItem('theme', html.getAttribute('data-theme'));
+}
+
+// On page load — restore saved preference
+const saved = localStorage.getItem('theme');
+if (saved) document.documentElement.setAttribute('data-theme', saved);
+```
+
+#### Dark Mode Token Values
+
+##### Backgrounds
+| Token | Light | Dark | Notes |
+|---|---|---|---|
+| `--bg-base` | `#f4f6fb` | `#0f1117` | Deep navy-slate, NOT pure black |
+| `--bg-surface` | `#ffffff` | `#181b25` | Cards, panels, header, sidebar |
+| `--bg-panel` | `#ffffff` | `#1e2130` | Elevated surface (inputs, bubbles) |
+
+##### Borders
+| Token | Light | Dark |
+|---|---|---|
+| `--border-color` | `#e2e5f0` | `rgba(255, 255, 255, 0.08)` |
+| `--border-2` | `#d0d4e2` | `rgba(255, 255, 255, 0.12)` |
+
+##### Text
+| Token | Light | Dark | Notes |
+|---|---|---|---|
+| `--text-primary` | `#1a1d2e` | `#e8eaed` | Soft white, not harsh #fff |
+| `--text-secondary` | `#3b3f54` | `#a1a7b8` | Muted lavender-gray |
+| `--text-muted` | `#7c8298` | `#6b7280` | Low-emphasis labels |
+
+##### Accents
+| Token | Light | Dark | Notes |
+|---|---|---|---|
+| `--primary` | `#6366f1` | `#818cf8` | Indigo-300, brightened for dark bg |
+| `--primary-hover` | `#4f46e5` | `#6366f1` | Swaps down to light's primary |
+| `--primary-glow` | `rgba(99,102,241,0.08)` | `rgba(129,140,248,0.10)` | — |
+| `--accent-2` | `#8b5cf6` | `#a78bfa` | Purple-300 |
+
+##### Semantic Colors
+| Token | Light | Dark |
+|---|---|---|
+| `--success` | `#10b981` | `#34d399` |
+| `--success-bg` | `rgba(16,185,129,0.1)` | `rgba(52,211,153,0.12)` |
+| `--warning` | `#f59e0b` | `#fbbf24` |
+| `--warning-bg` | `rgba(245,158,11,0.1)` | `rgba(251,191,36,0.12)` |
+| `--danger` | `#f43f5e` | `#fb7185` |
+| `--danger-bg` | `rgba(244,63,94,0.1)` | `rgba(251,113,133,0.12)` |
+| `--info` | `#06b6d4` | `#22d3ee` |
+| `--info-bg` | `rgba(6,182,212,0.1)` | `rgba(34,211,238,0.12)` |
+
+##### Shadows
+| Token | Light | Dark |
+|---|---|---|
+| `--shadow` | `0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)` | `0 1px 3px rgba(0,0,0,0.25), 0 4px 16px rgba(0,0,0,0.20)` |
+| `--shadow-lg` | `0 4px 24px rgba(0,0,0,0.08)` | `0 4px 24px rgba(0,0,0,0.35)` |
+
+#### Component-Specific Dark Overrides
+
+Most components work automatically through token reassignment. The following components have additional overrides:
+
+| Component | Override |
+|---|---|
+| `.form-control-custom` | Background: `--bg-panel` (one level lighter than surface) |
+| `.btn-secondary-custom` | Background: `--bg-panel`, hover: `rgba(255,255,255,0.06)` |
+| `.tab-link.active` | Background: `--bg-panel` |
+| `.comment-bubble` | Background: `--bg-panel` |
+| `.new-comment-input` | Background: `--bg-panel`, focus → `--bg-surface` |
+| `.edit-post-textarea` | Background: `--bg-panel`, focus → `--bg-surface` |
+| `.feed-create-input` | Background: `--bg-panel`, hover: `rgba(255,255,255,0.06)` |
+| `.sidebar-overlay` | Background: `rgba(0,0,0,0.55)` (deeper than light) |
+| `.modal-backdrop-custom` | Background: `rgba(0,0,0,0.55)` |
+| `.premium-table tr:hover td` | Background: `rgba(129,140,248,0.04)` |
+| Scrollbar thumb | `rgba(255,255,255,0.12)` |
+
+#### Design Principles
+
+1. **No pure black** — backgrounds use deep navy-slate (#0f1117 → #1e2130) for warmth
+2. **Three-tier elevation** — `--bg-base` < `--bg-surface` < `--bg-panel` creates depth
+3. **Softened text** — `#e8eaed` primary text avoids eye strain vs harsh `#ffffff`
+4. **Brightened accents** — Indigo shifts from 500→300 weight for dark-bg legibility
+5. **Higher-opacity semantic bgs** — 0.12 vs 0.1 to remain visible on dark surfaces
+6. **Deeper shadows** — 5× opacity increase since dark backgrounds absorb more light
+
 ---
 
 ## 3. Typography

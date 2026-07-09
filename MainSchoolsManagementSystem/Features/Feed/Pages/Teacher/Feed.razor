@@ -1,0 +1,7 @@
+@page "/teacher/feed"
+@layout MainSchoolsManagementSystem.Components.Layout.TeacherLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Teacher")]
+
+<PageTitle>Feed - Teacher</PageTitle>
+
+<MainSchoolsManagementSystem.Features.Feed.Components.FeedComponent CurrentRole="Teacher" />

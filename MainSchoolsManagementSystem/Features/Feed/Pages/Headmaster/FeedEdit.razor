@@ -1,0 +1,11 @@
+@page "/headmaster/feed/edit/{PostId:int}"
+@layout MainSchoolsManagementSystem.Components.Layout.MainLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Headmaster")]
+
+<PageTitle>Edit Post - Headmaster</PageTitle>
+
+<MainSchoolsManagementSystem.Features.Feed.Components.CreateFeedPostComponent CurrentRole="Headmaster" PostId="PostId" />
+
+@code {
+    [Parameter] public int PostId { get; set; }
+}

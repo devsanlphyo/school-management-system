@@ -1,0 +1,334 @@
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject MainSchoolsManagementSystem.Features.Attendance.Services.IAttendanceService AttendanceService
+@inject MainSchoolsManagementSystem.Features.SystemSettings.Services.ISystemSettingService SystemSettingService
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using System
+@using System.Linq
+
+<PageTitle>Attendance — HelloTwo</PageTitle>
+
+<div class="d-flex flex-column" style="gap: 2.5rem; animation: slideIn 0.5s ease-out;">
+    <!-- Header -->
+    <div style="margin-bottom: -1rem;">
+        <h2 style="font-size: 2.2rem; font-weight: 900; background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.25rem; letter-spacing: -0.02em;">
+            @GetGreeting(), @(currentTeacher?.FullName?.Split(' ')[0] ?? "Teacher")!
+        </h2>
+        <p style="color: var(--text-secondary); font-size: 1.05rem;">
+            Today is @DateTime.Today.ToString("dddd, MMMM dd, yyyy"). Manage your attendance records here.
+        </p>
+    </div>
+
+    <!-- Daily Check-In Card -->
+    <div class="glass-panel check-in-card" style="padding: 2.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 2rem; position: relative; overflow: hidden; border-radius: var(--radius-lg); background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(0,0,0,0.01)); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);">
+        <div style="z-index: 1;">
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 1.3rem; color: var(--text-primary); font-weight: 700;">Daily Check-In</h4>
+            @if (isWeekend)
+            {
+                <p style="margin: 0; color: var(--text-secondary); font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--warning);"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    It's the weekend! Take some time to rest.
+                </p>
+            }
+            else if (todayAttendance == null)
+            {
+                <p style="margin: 0; color: var(--text-secondary); font-size: 1rem;">You have not checked in yet today.</p>
+            }
+            else
+            {
+                <p style="margin: 0; color: var(--text-secondary); font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--success);"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    Checked in at @(todayAttendance.CheckedInAt?.ToLocalTime().ToString("hh:mm tt") ?? "—")
+                </p>
+            }
+        </div>
+
+        <div style="z-index: 1;">
+            @if (isWeekend)
+            {
+                <button class="btn-premium" disabled style="opacity: 0.6; cursor: not-allowed; background: var(--border-color); color: var(--text-muted); box-shadow: none;">
+                    Check-in Disabled
+                </button>
+            }
+            else if (todayAttendance == null)
+            {
+                @if (isMaintenanceMode)
+                {
+                    <button class="btn-premium btn-secondary-custom" disabled style="opacity: 0.6; cursor: not-allowed;">
+                        System Under Maintenance
+                    </button>
+                }
+                else
+                {
+                    <button class="btn-premium check-in-btn" style="background: linear-gradient(135deg, var(--primary), var(--accent)); padding: 0.85rem 2.5rem; font-size: 1.1rem; border-radius: 50px; box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);" @onclick="() => CheckIn(DateTime.UtcNow)">
+                        <span style="display: flex; align-items: center; gap: 0.6rem;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                            Check In Now
+                        </span>
+                    </button>
+                }
+            }
+            else
+            {
+                switch (todayAttendance.Status)
+                {
+                    case AttendanceStatus.Present:
+                        <span class="badge badge-present" style="font-size: 1rem; padding: 0.6rem 1.5rem; border-radius: 50px;">Present</span>
+                        break;
+                    case AttendanceStatus.Late:
+                        <span class="badge badge-late" style="font-size: 1rem; padding: 0.6rem 1.5rem; border-radius: 50px;">Late</span>
+                        break;
+                    case AttendanceStatus.Absent:
+                        <span class="badge badge-absent" style="font-size: 1rem; padding: 0.6rem 1.5rem; border-radius: 50px;">Absent</span>
+                        break;
+                }
+            }
+        </div>
+
+        <!-- Decorative background elements -->
+        <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; border-radius: 50%; background: var(--primary); opacity: 0.08; filter: blur(25px); z-index: 0; pointer-events: none;"></div>
+        <div style="position: absolute; bottom: -30px; left: 10%; width: 100px; height: 100px; border-radius: 50%; background: var(--accent); opacity: 0.08; filter: blur(20px); z-index: 0; pointer-events: none;"></div>
+    </div>
+
+    <!-- Monthly Stats Grid -->
+    <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+        <div class="stat-card success" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; border-radius: var(--radius-lg); border: 1px solid rgba(16, 185, 129, 0.2); background: rgba(16, 185, 129, 0.05); transition: transform 0.2s ease;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span class="stat-label" style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--success); font-weight: 700;">Present Days</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            </div>
+            <span class="stat-value" style="font-size: 2.5rem; color: var(--success);">@presentCount</span>
+        </div>
+        <div class="stat-card warning" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; border-radius: var(--radius-lg); border: 1px solid rgba(245, 158, 11, 0.2); background: rgba(245, 158, 11, 0.05); transition: transform 0.2s ease;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span class="stat-label" style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--warning); font-weight: 700;">Late Days</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+            <span class="stat-value" style="font-size: 2.5rem; color: var(--warning);">@lateCount</span>
+        </div>
+        <div class="stat-card danger" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; border-radius: var(--radius-lg); border: 1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.05); transition: transform 0.2s ease;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span class="stat-label" style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--danger); font-weight: 700;">Absent Days</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+            </div>
+            <span class="stat-value" style="font-size: 2.5rem; color: var(--danger);">@absentCount</span>
+        </div>
+    </div>
+
+    <!-- Attendance History Table -->
+    <div class="glass-panel" style="padding: 0; border-radius: var(--radius-lg); overflow: hidden;">
+        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.02);">
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">Attendance History — @DateTime.Today.ToString("MMMM yyyy")</h3>
+        </div>
+        <div class="table-container">
+            <table class="premium-table" style="margin: 0;">
+                <thead>
+                    <tr>
+                        <th style="padding: 1.25rem 1.5rem;">Date</th>
+                        <th>Day</th>
+                        <th>Check-in Time</th>
+                        <th style="text-align: right; padding-right: 1.5rem;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (attendanceHistory.Any())
+                    {
+                        foreach (var record in attendanceHistory)
+                        {
+                            <tr style="transition: background-color 0.2s ease;">
+                                <td style="padding-left: 1.5rem;">
+                                    <div style="font-weight: 600; color: var(--text-primary);">@record.Date.ToString("dd MMM yyyy")</div>
+                                </td>
+                                <td>
+                                    <div style="color: var(--text-secondary); font-size: 0.9rem;">@record.Date.ToString("dddd")</div>
+                                </td>
+                                <td>
+                                    <div style="font-weight: 500;">@(record.CheckedInAt?.ToLocalTime().ToString("hh:mm tt") ?? "—")</div>
+                                </td>
+                                <td style="text-align: right; padding-right: 1.5rem;">
+                                    @switch (record.Status)
+                                    {
+                                        case AttendanceStatus.Present:
+                                            <span class="badge badge-present" style="border-radius: 50px;">Present</span>
+                                            break;
+                                        case AttendanceStatus.Late:
+                                            <span class="badge badge-late" style="border-radius: 50px;">Late</span>
+                                            break;
+                                        case AttendanceStatus.Absent:
+                                            <span class="badge badge-absent" style="border-radius: 50px;">Absent</span>
+                                            break;
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="4" style="text-align: center; padding: 4rem 2rem; color: var(--text-muted);">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5; margin-bottom: 1rem;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                <p style="margin: 0; font-size: 1.1rem;">No attendance records found for this month.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    @@keyframes slideIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .check-in-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 25px rgba(99, 102, 241, 0.4) !important;
+    }
+    
+    .check-in-btn:active {
+        transform: translateY(0);
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-3px);
+    }
+    
+    .premium-table tbody tr:hover {
+        background-color: rgba(255, 255, 255, 0.03);
+    }
+</style>
+
+@code {
+    private string? teacherId;
+    private ApplicationUser? currentTeacher;
+    private MainSchoolsManagementSystem.Features.Attendance.Models.Attendance? todayAttendance;
+    private List<MainSchoolsManagementSystem.Features.Attendance.Models.Attendance> attendanceHistory = new();
+
+    private int presentCount = 0;
+    private int lateCount = 0;
+    private int absentCount = 0;
+
+    private bool isMaintenanceMode = false;
+    private bool isWeekend = false;
+    private TimeSpan dailyDeadline = new TimeSpan(8, 30, 0);
+
+    private string GetGreeting()
+    {
+        var hour = DateTime.Now.Hour;
+        if (hour < 12) return "Good Morning";
+        if (hour < 18) return "Good Afternoon";
+        return "Good Evening";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var appUser = await UserManager.GetUserAsync(user);
+            if (appUser != null)
+            {
+                teacherId = appUser.Id;
+                currentTeacher = appUser;
+                await LoadDataAsync();
+            }
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        if (string.IsNullOrEmpty(teacherId)) return;
+
+        // Fetch settings
+        var setting = await SystemSettingService.GetSettingsAsync();
+        dailyDeadline = setting.DailyDeadline;
+        isMaintenanceMode = setting.MaintenanceMode;
+
+        var today = DateTime.Today;
+        isWeekend = today.DayOfWeek == DayOfWeek.Saturday || today.DayOfWeek == DayOfWeek.Sunday;
+
+        // Load today's attendance record
+        todayAttendance = await AttendanceService.GetAttendanceAsync(teacherId, today);
+
+        // Load all attendance records for this month
+        var firstDayOfMonth = new DateTime(today.Year, today.Month, 1);
+        var lastDayOfMonth = firstDayOfMonth.AddMonths(1).AddDays(-1);
+
+        var monthRecords = await AttendanceService.GetAttendanceHistoryAsync(teacherId, firstDayOfMonth, lastDayOfMonth);
+
+        // Build history: weekdays from 1st of month up to today
+        var historyList = new List<MainSchoolsManagementSystem.Features.Attendance.Models.Attendance>();
+        presentCount = 0;
+        lateCount = 0;
+        absentCount = 0;
+
+        for (var date = today; date >= firstDayOfMonth; date = date.AddDays(-1))
+        {
+            // Skip weekends
+            if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday)
+            {
+                continue;
+            }
+
+            var record = monthRecords.FirstOrDefault(r => r.Date == date);
+            if (record != null)
+            {
+                historyList.Add(record);
+                if (record.Status == AttendanceStatus.Present) presentCount++;
+                else if (record.Status == AttendanceStatus.Late) lateCount++;
+                else if (record.Status == AttendanceStatus.Absent) absentCount++;
+            }
+            else
+            {
+                // No record on a past weekday is counted as Absent
+                var dummyRecord = new MainSchoolsManagementSystem.Features.Attendance.Models.Attendance
+                {
+                    UserId = teacherId,
+                    Date = date,
+                    CheckedInAt = null,
+                    Status = AttendanceStatus.Absent
+                };
+                
+                historyList.Add(dummyRecord);
+                absentCount++;
+            }
+        }
+
+        // Sort history by date descending
+        attendanceHistory = historyList.OrderByDescending(h => h.Date).ToList();
+    }
+
+    private async Task CheckIn()
+    {
+        await CheckIn(DateTime.UtcNow);
+    }
+
+    private async Task CheckIn(DateTime timestamp)
+    {
+        var localTime = timestamp.ToLocalTime();
+        if (localTime.DayOfWeek == DayOfWeek.Saturday || localTime.DayOfWeek == DayOfWeek.Sunday) return;
+        
+        if (isMaintenanceMode || string.IsNullOrEmpty(teacherId)) return;
+        if (todayAttendance != null) return;
+        
+        var isLate = localTime.TimeOfDay > dailyDeadline;
+
+        todayAttendance = await AttendanceService.CheckInAsync(teacherId, timestamp, dailyDeadline);
+
+        await LoadDataAsync();
+        try
+        {
+            StateHasChanged();
+        }
+        catch (InvalidOperationException)
+        {
+            // Suppress exception during unit testing
+        }
+    }
+}

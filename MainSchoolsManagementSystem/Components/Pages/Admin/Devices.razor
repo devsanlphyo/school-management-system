@@ -1,0 +1,113 @@
+@page "/admin/devices"
+@layout MainSchoolsManagementSystem.Components.Layout.AdminLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@using MainSchoolsManagementSystem.Data
+@using MainSchoolsManagementSystem.Features.TrustedDevices.Services
+@inject ITrustedDeviceService TrustedDeviceService
+@inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
+
+<PageTitle>Device Authorizations — Admin</PageTitle>
+
+<div class="d-flex flex-column" style="max-width: 900px; gap: 2rem;">
+    <!-- Header -->
+    <div>
+        <h2 style="font-size: 1.85rem; font-weight: 900; color: var(--text-primary); margin-bottom: 0.4rem;">Device Authorizations</h2>
+        <p style="color: var(--text-muted); font-size: 0.92rem;">Manage device access for all users in the system.</p>
+    </div>
+
+    <!-- Devices List -->
+    <div class="glass-panel" style="padding: 1.5rem;">
+        @if (devices == null)
+        {
+            <p>Loading devices...</p>
+        }
+        else if (!devices.Any())
+        {
+            <p style="color: var(--text-muted);">No devices have been registered yet.</p>
+        }
+        else
+        {
+            <table class="table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 2px solid var(--border-color); text-align: left;">
+                        <th style="padding: 0.75rem;">User</th>
+                        <th style="padding: 0.75rem;">Device Details</th>
+                        <th style="padding: 0.75rem;">Last Used</th>
+                        <th style="padding: 0.75rem;">Status</th>
+                        <th style="padding: 0.75rem;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var device in devices)
+                    {
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding: 1rem 0.75rem; vertical-align: top;">
+                                <strong>@device.User?.FullName</strong><br/>
+                                <span style="font-size: 0.8rem; color: var(--text-muted);">@device.User?.Email</span>
+                            </td>
+                            <td style="padding: 1rem 0.75rem; vertical-align: top;">
+                                <div style="font-size: 0.85rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="@device.DeviceName">
+                                    @device.DeviceName
+                                </div>
+                                <span style="font-size: 0.8rem; color: var(--text-muted);">IP: @device.IpAddress</span>
+                            </td>
+                            <td style="padding: 1rem 0.75rem; vertical-align: top; font-size: 0.85rem;">
+                                @device.LastUsedAt.ToString("MMM dd, yyyy HH:mm")
+                            </td>
+                            <td style="padding: 1rem 0.75rem; vertical-align: top;">
+                                @if (device.Status == DeviceStatus.Approved)
+                                {
+                                    <span class="badge badge-green" style="padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">Approved</span>
+                                }
+                                else if (device.Status == DeviceStatus.Pending)
+                                {
+                                    <span class="badge badge-yellow" style="padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; background: rgba(234,179,8,0.2); color: #ca8a04;">Pending</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-red" style="padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; background: rgba(239,68,68,0.2); color: var(--danger);">Revoked</span>
+                                }
+                            </td>
+                            <td style="padding: 1rem 0.75rem; vertical-align: top;">
+                                <div style="display: flex; gap: 0.5rem;">
+                                    @if (device.Status != DeviceStatus.Approved)
+                                    {
+                                        <button class="btn btn-sm btn-outline-success" @onclick="() => UpdateStatusAsync(device.Id, DeviceStatus.Approved)" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid #22c55e; color: #22c55e; background: transparent; cursor: pointer;">
+                                            Approve
+                                        </button>
+                                    }
+                                    @if (device.Status != DeviceStatus.Revoked)
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => UpdateStatusAsync(device.Id, DeviceStatus.Revoked)" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid var(--danger); color: var(--danger); background: transparent; cursor: pointer;">
+                                            Revoke
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private List<UserTrustedDevice>? devices;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDevicesAsync();
+    }
+
+    private async Task LoadDevicesAsync()
+    {
+        devices = await TrustedDeviceService.GetAllDevicesAsync();
+    }
+
+    private async Task UpdateStatusAsync(Guid deviceId, DeviceStatus newStatus)
+    {
+        await TrustedDeviceService.UpdateDeviceStatusAsync(deviceId, newStatus);
+        await LoadDevicesAsync();
+    }
+}
