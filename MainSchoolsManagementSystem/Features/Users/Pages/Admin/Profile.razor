@@ -1,0 +1,12 @@
+@page "/admin/profile"
+@page "/admin/profile/{UserId}"
+@layout AdminLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+
+<PageTitle>Profile - Admin Portal</PageTitle>
+
+<MainSchoolsManagementSystem.Features.Users.Components.ProfileComponent UserId="@UserId" />
+
+@code {
+    [Parameter] public string? UserId { get; set; }
+}

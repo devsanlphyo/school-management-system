@@ -1,0 +1,12 @@
+@page "/officer/profile"
+@page "/officer/profile/{UserId}"
+@layout MainSchoolsManagementSystem.Components.Layout.OfficerLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Officer")]
+
+<PageTitle>Profile - Officer</PageTitle>
+
+<MainSchoolsManagementSystem.Features.Users.Components.ProfileComponent UserId="@UserId" />
+
+@code {
+    [Parameter] public string? UserId { get; set; }
+}

@@ -1,0 +1,12 @@
+@page "/headmaster/profile"
+@page "/headmaster/profile/{UserId}"
+@layout MainSchoolsManagementSystem.Components.Layout.HeadmasterLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Headmaster")]
+
+<PageTitle>Profile - Headmaster</PageTitle>
+
+<MainSchoolsManagementSystem.Features.Users.Components.ProfileComponent UserId="@UserId" />
+
+@code {
+    [Parameter] public string? UserId { get; set; }
+}
