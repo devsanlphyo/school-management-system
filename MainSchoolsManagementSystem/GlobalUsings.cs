@@ -14,3 +14,5 @@ global using MainSchoolsManagementSystem.Features.TrustedDevices.Models;
 global using MainSchoolsManagementSystem.Features.TrustedDevices.Services;
 global using MainSchoolsManagementSystem.Features.SystemSettings.Models;
 global using MainSchoolsManagementSystem.Features.SystemSettings.Services;
+global using MainSchoolsManagementSystem.Features.Notifications.Models;
+global using MainSchoolsManagementSystem.Features.Notifications.Services;

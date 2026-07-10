@@ -1,0 +1,7 @@
+@page "/assistant/notifications"
+@layout MainSchoolsManagementSystem.Components.Layout.AssistantLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Assistant")]
+
+<PageTitle>Notifications - Assistant</PageTitle>
+
+<MainSchoolsManagementSystem.Features.Notifications.Components.NotificationsComponent CurrentRole="Assistant" />

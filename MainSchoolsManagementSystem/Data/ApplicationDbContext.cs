@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using MainSchoolsManagementSystem.Features.Notifications.Models;
 
 namespace MainSchoolsManagementSystem.Data
 {
@@ -20,6 +21,7 @@ namespace MainSchoolsManagementSystem.Data
         public DbSet<FeedPostReaction> FeedPostReactions { get; set; }
         public DbSet<FeedPostComment> FeedPostComments { get; set; }
         public DbSet<UserTrustedDevice> UserTrustedDevices { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -133,6 +135,24 @@ namespace MainSchoolsManagementSystem.Data
                 .HasOne(fpc => fpc.Author)
                 .WithMany()
                 .HasForeignKey(fpc => fpc.AuthorId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<Notification>()
+                .HasOne(n => n.Recipient)
+                .WithMany()
+                .HasForeignKey(n => n.RecipientId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<Notification>()
+                .HasOne(n => n.TriggerUser)
+                .WithMany()
+                .HasForeignKey(n => n.TriggerUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<Notification>()
+                .HasOne(n => n.FeedPost)
+                .WithMany()
+                .HasForeignKey(n => n.FeedPostId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

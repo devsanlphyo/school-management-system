@@ -189,5 +189,154 @@ namespace MainSchoolsManagementSystem.Data
             Console.WriteLine("🏁 DATABASE RELATIONSHIP TESTS COMPLETE.");
             Console.WriteLine("==================================================\n");
         }
+
+        public static async Task RunNotificationTestsAsync(IServiceProvider serviceProvider)
+        {
+            using var scope = serviceProvider.CreateScope();
+            var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
+            var feedService = scope.ServiceProvider.GetRequiredService<IFeedService>();
+            var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+            Console.WriteLine("\n==================================================");
+            Console.WriteLine("🚀 STARTING NOTIFICATION SYSTEM TESTS...");
+            Console.WriteLine("==================================================\n");
+
+            try
+            {
+                // 1. Create a Test School
+                int schoolId;
+                using (var context = await dbFactory.CreateDbContextAsync())
+                {
+                    var school = new School { Name = "Notification Test Academy" };
+                    context.Schools.Add(school);
+                    await context.SaveChangesAsync();
+                    schoolId = school.Id;
+                }
+
+                // 2. Create Post Owner User
+                var existingOwner = await userManager.FindByEmailAsync("owner@test.com");
+                if (existingOwner != null)
+                {
+                    await userManager.DeleteAsync(existingOwner);
+                }
+
+                var owner = new ApplicationUser
+                {
+                    UserName = "owner@test.com",
+                    Email = "owner@test.com",
+                    FullName = "Post Owner",
+                    SchoolId = schoolId
+                };
+                var resultOwner = await userManager.CreateAsync(owner, "TestPassword123!");
+                if (!resultOwner.Succeeded)
+                {
+                    throw new Exception($"Failed to create owner user: {string.Join(", ", resultOwner.Errors.Select(e => e.Description))}");
+                }
+
+                // 3. Create Trigger User (who comments/reacts)
+                var existingTrigger = await userManager.FindByEmailAsync("trigger@test.com");
+                if (existingTrigger != null)
+                {
+                    await userManager.DeleteAsync(existingTrigger);
+                }
+
+                var triggerUser = new ApplicationUser
+                {
+                    UserName = "trigger@test.com",
+                    Email = "trigger@test.com",
+                    FullName = "Trigger User",
+                    SchoolId = schoolId
+                };
+                var resultTrigger = await userManager.CreateAsync(triggerUser, "TestPassword123!");
+                if (!resultTrigger.Succeeded)
+                {
+                    throw new Exception($"Failed to create trigger user: {string.Join(", ", resultTrigger.Errors.Select(e => e.Description))}");
+                }
+
+                // 4. Create a Feed Post by Owner
+                var post = await feedService.CreatePostAsync(owner.Id, "Hello World from Post Owner!");
+                Console.WriteLine("[SUCCESS] Created feed post by Owner.");
+
+                // 5. Test Trigger User commenting on Post
+                var comment = await feedService.AddCommentAsync(post.Id, triggerUser.Id, "Great post!");
+                Console.WriteLine("[SUCCESS] Trigger User added a comment.");
+
+                // Verify comment notification was created
+                var count = await notificationService.GetUnreadCountAsync(owner.Id);
+                if (count != 1) throw new Exception($"Expected 1 unread notification, got {count}");
+                Console.WriteLine("[SUCCESS] Notification unread count is 1.");
+
+                var notifications = await notificationService.GetNotificationsForUserAsync(owner.Id);
+                var commentNotif = notifications.FirstOrDefault(n => n.Type == "Comment");
+                if (commentNotif == null) throw new Exception("Comment notification not found.");
+                if (commentNotif.TriggerUserId != triggerUser.Id) throw new Exception("Trigger user ID mismatch.");
+                Console.WriteLine("[SUCCESS] Comment notification correctly created and populated.");
+
+                // 6. Test Trigger User reacting to Post
+                await feedService.ToggleReactionAsync(post.Id, triggerUser.Id);
+                Console.WriteLine("[SUCCESS] Trigger User liked the post.");
+
+                count = await notificationService.GetUnreadCountAsync(owner.Id);
+                if (count != 2) throw new Exception($"Expected 2 unread notifications after reaction, got {count}");
+                Console.WriteLine("[SUCCESS] Notification unread count is 2.");
+
+                notifications = await notificationService.GetNotificationsForUserAsync(owner.Id);
+                var reactNotif = notifications.FirstOrDefault(n => n.Type == "Reaction");
+                if (reactNotif == null) throw new Exception("Reaction notification not found.");
+                Console.WriteLine("[SUCCESS] Reaction notification correctly created.");
+
+                // 7. Test Toggling Reaction Off deletes the notification
+                await feedService.ToggleReactionAsync(post.Id, triggerUser.Id);
+                Console.WriteLine("[SUCCESS] Trigger User unliked the post.");
+
+                count = await notificationService.GetUnreadCountAsync(owner.Id);
+                if (count != 1) throw new Exception($"Expected 1 unread notification after unlike, got {count}");
+                Console.WriteLine("[SUCCESS] Notification unread count decreased to 1.");
+
+                // 8. Test Marking All as Read
+                await notificationService.MarkAllAsReadAsync(owner.Id);
+                count = await notificationService.GetUnreadCountAsync(owner.Id);
+                if (count != 0) throw new Exception($"Expected 0 unread notifications after mark all read, got {count}");
+                Console.WriteLine("[SUCCESS] All notifications marked as read successfully.");
+
+                // 9. Cleanup
+                Console.WriteLine("\n--------------------------------------------------");
+                Console.WriteLine("🧹 CLEANING UP NOTIFICATION TEST DATA...");
+                Console.WriteLine("--------------------------------------------------");
+
+                using (var cleanupContext = await dbFactory.CreateDbContextAsync())
+                {
+                    var commentDb = await cleanupContext.FeedPostComments.FindAsync(comment.Id);
+                    if (commentDb != null) cleanupContext.FeedPostComments.Remove(commentDb);
+
+                    var postDb = await cleanupContext.FeedPosts.FindAsync(post.Id);
+                    if (postDb != null) cleanupContext.FeedPosts.Remove(postDb);
+
+                    await cleanupContext.SaveChangesAsync();
+                }
+
+                await userManager.DeleteAsync(owner);
+                await userManager.DeleteAsync(triggerUser);
+
+                using (var cleanupContext = await dbFactory.CreateDbContextAsync())
+                {
+                    var schoolDb = await cleanupContext.Schools.FindAsync(schoolId);
+                    if (schoolDb != null) cleanupContext.Schools.Remove(schoolDb);
+                    await cleanupContext.SaveChangesAsync();
+                }
+
+                Console.WriteLine("[SUCCESS] Cleaned up all test records successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"\n[ERROR] Notification Test execution failed: {ex.Message}");
+                throw;
+            }
+
+            Console.WriteLine("\n==================================================");
+            Console.WriteLine("🏁 NOTIFICATION SYSTEM TESTS COMPLETE.");
+            Console.WriteLine("==================================================\n");
+        }
     }
 }

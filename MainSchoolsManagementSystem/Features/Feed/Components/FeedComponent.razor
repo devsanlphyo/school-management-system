@@ -35,7 +35,7 @@
       <div class="posts-list">
           @foreach (var post in posts)
           {
-              <div class="post-card">
+              <div class="post-card" id="post-@post.Id">
                   <!-- Post Header -->
                   <div class="post-header">
                       <div class="post-author-avatar" @onclick="() => NavigateToProfile(post.AuthorId)" style="cursor: pointer;" title="View Profile">

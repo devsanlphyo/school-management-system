@@ -1,0 +1,7 @@
+@page "/teacher/notifications"
+@layout MainSchoolsManagementSystem.Components.Layout.TeacherLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Teacher")]
+
+<PageTitle>Notifications - Teacher</PageTitle>
+
+<MainSchoolsManagementSystem.Features.Notifications.Components.NotificationsComponent CurrentRole="Teacher" />

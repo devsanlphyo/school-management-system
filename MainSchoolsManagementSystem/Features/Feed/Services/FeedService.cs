@@ -74,9 +74,19 @@ namespace MainSchoolsManagementSystem.Features.Feed.Services
             var existing = await context.FeedPostReactions
                 .FirstOrDefaultAsync(r => r.FeedPostId == postId && r.UserId == userId);
                 
+            var post = await context.FeedPosts.FindAsync(postId);
+            if (post == null) return;
+
             if (existing != null)
             {
                 context.FeedPostReactions.Remove(existing);
+                
+                var notification = await context.Notifications
+                    .FirstOrDefaultAsync(n => n.FeedPostId == postId && n.TriggerUserId == userId && n.Type == "Reaction");
+                if (notification != null)
+                {
+                    context.Notifications.Remove(notification);
+                }
             }
             else
             {
@@ -85,6 +95,19 @@ namespace MainSchoolsManagementSystem.Features.Feed.Services
                     FeedPostId = postId, 
                     UserId = userId 
                 });
+
+                if (post.AuthorId != userId)
+                {
+                    context.Notifications.Add(new Notification
+                    {
+                        RecipientId = post.AuthorId,
+                        TriggerUserId = userId,
+                        FeedPostId = postId,
+                        Type = "Reaction",
+                        CreatedAt = DateTime.UtcNow,
+                        IsRead = false
+                    });
+                }
             }
             await context.SaveChangesAsync();
         }
@@ -101,8 +124,22 @@ namespace MainSchoolsManagementSystem.Features.Feed.Services
             };
             
             context.FeedPostComments.Add(comment);
-            await context.SaveChangesAsync();
+
+            var post = await context.FeedPosts.FindAsync(postId);
+            if (post != null && post.AuthorId != userId)
+            {
+                context.Notifications.Add(new Notification
+                {
+                    RecipientId = post.AuthorId,
+                    TriggerUserId = userId,
+                    FeedPostId = postId,
+                    Type = "Comment",
+                    CreatedAt = DateTime.UtcNow,
+                    IsRead = false
+                });
+            }
             
+            await context.SaveChangesAsync();
             return comment;
         }
         
