@@ -110,6 +110,11 @@ namespace MainSchoolsManagementSystem.Features.Feed.Services
                 }
             }
             await context.SaveChangesAsync();
+
+            if (existing == null && post.AuthorId != userId)
+            {
+                MainSchoolsManagementSystem.Features.Notifications.Services.NotificationService.Notify(post.AuthorId);
+            }
         }
 
         public async Task<FeedPostComment> AddCommentAsync(int postId, string userId, string content)
@@ -140,6 +145,12 @@ namespace MainSchoolsManagementSystem.Features.Feed.Services
             }
             
             await context.SaveChangesAsync();
+
+            if (post != null && post.AuthorId != userId)
+            {
+                MainSchoolsManagementSystem.Features.Notifications.Services.NotificationService.Notify(post.AuthorId);
+            }
+
             return comment;
         }
         
@@ -222,6 +233,19 @@ namespace MainSchoolsManagementSystem.Features.Feed.Services
             return rolesQuery
                 .GroupBy(x => x.UserId)
                 .ToDictionary(g => g.Key, g => g.First().Name!);
+        }
+
+        public async Task<FeedPost?> GetPostDetailByIdAsync(int postId)
+        {
+            using var context = await _dbFactory.CreateDbContextAsync();
+            return await context.FeedPosts
+                .AsNoTracking()
+                .Include(p => p.Author)
+                .Include(p => p.MediaItems)
+                .Include(p => p.Reactions)
+                .Include(p => p.Comments)
+                    .ThenInclude(c => c.Author)
+                .FirstOrDefaultAsync(p => p.Id == postId);
         }
     }
 }

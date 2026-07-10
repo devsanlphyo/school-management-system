@@ -1,0 +1,11 @@
+@page "/assistant/feed/post/{PostId:int}"
+@layout MainSchoolsManagementSystem.Components.Layout.AssistantLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Assistant")]
+
+<PageTitle>Post Details - Assistant</PageTitle>
+
+<MainSchoolsManagementSystem.Features.Feed.Components.PostDetailComponent CurrentRole="Assistant" PostId="PostId" />
+
+@code {
+    [Parameter] public int PostId { get; set; }
+}

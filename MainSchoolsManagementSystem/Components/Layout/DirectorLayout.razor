@@ -61,11 +61,16 @@
     </aside>
 
     <main class='admin-main'>
+        @{
+            bool isPostDetail = NavigationManager.Uri.Contains("/feed/post/");
+        }
         <MainSchoolsManagementSystem.Components.Shared.PortalHeader 
-            Title="Director Portal" 
+            Title="@(isPostDetail ? "Post Details" : "Director Portal")" 
             ShowSchoolIcon="false" 
             UserDisplayName="@userDisplayName" 
-            OnToggleSidebar="ToggleSidebar" />
+            OnToggleSidebar="ToggleSidebar"
+            ShowBackButton="@isPostDetail"
+            OnBackClick="GoBack" />
         <div class='admin-content'>
             @Body
         </div>
@@ -75,6 +80,7 @@
 @code {
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
 
     private string userDisplayName = "";
     private bool isSidebarOpen = false;
@@ -86,6 +92,7 @@
     protected override async Task OnInitializedAsync()
     {
         NavigationManager.LocationChanged += OnLocationChanged;
+        MainSchoolsManagementSystem.Features.Notifications.Services.NotificationService.OnNotificationReceived += HandleNotificationReceived;
         await UpdateUnreadCountAsync();
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
@@ -123,9 +130,29 @@
         });
     }
 
+    private void HandleNotificationReceived(string recipientId)
+    {
+        InvokeAsync(async () =>
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == recipientId)
+            {
+                await UpdateUnreadCountAsync();
+                StateHasChanged();
+            }
+        });
+    }
+
+    private async Task GoBack()
+    {
+        await JSRuntime.InvokeVoidAsync("history.back");
+    }
+
     public void Dispose()
     {
         NavigationManager.LocationChanged -= OnLocationChanged;
+        MainSchoolsManagementSystem.Features.Notifications.Services.NotificationService.OnNotificationReceived -= HandleNotificationReceived;
     }
 }
 

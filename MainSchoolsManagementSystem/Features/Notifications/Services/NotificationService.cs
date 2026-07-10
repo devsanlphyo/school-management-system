@@ -37,6 +37,17 @@ namespace MainSchoolsManagementSystem.Features.Notifications.Services
                 .CountAsync();
         }
 
+        public static event Action<string>? OnNotificationReceived;
+
+        public static void Notify(string recipientId)
+        {
+            try
+            {
+                OnNotificationReceived?.Invoke(recipientId);
+            }
+            catch { }
+        }
+
         public async Task MarkAllAsReadAsync(string userId)
         {
             using var context = await _dbFactory.CreateDbContextAsync();
@@ -51,6 +62,7 @@ namespace MainSchoolsManagementSystem.Features.Notifications.Services
                     n.IsRead = true;
                 }
                 await context.SaveChangesAsync();
+                Notify(userId);
             }
         }
 
@@ -62,6 +74,7 @@ namespace MainSchoolsManagementSystem.Features.Notifications.Services
             {
                 n.IsRead = true;
                 await context.SaveChangesAsync();
+                Notify(n.RecipientId);
             }
         }
     }

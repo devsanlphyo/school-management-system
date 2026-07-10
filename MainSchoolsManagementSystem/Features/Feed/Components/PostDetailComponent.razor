@@ -1,0 +1,303 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using System.Security.Claims
+@using Microsoft.JSInterop
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@inject IFeedService FeedService
+@inject UserManager<ApplicationUser> UserManager
+@inject IJSRuntime JSRuntime
+
+<div class="feed-container">
+  <div style="max-width: 680px; margin: 0 auto; width: 100%;">
+      @if (loading)
+      {
+          <div class="glass-panel" style="padding: 3rem; text-align: center; color: var(--text-muted);">
+              <p>Loading post details...</p>
+          </div>
+      }
+      else if (post == null)
+      {
+          <div class="glass-panel" style="padding: 3rem; text-align: center; color: var(--text-secondary);">
+              <p style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">Post not found</p>
+              <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.5rem;">This post may have been deleted or you don't have permission to view it.</p>
+              <button class="btn-premium" @onclick="GoBack">Back</button>
+          </div>
+      }
+      else
+      {
+          <!-- Main Post Card -->
+          <div class="post-card" style="border: 1px solid var(--border-color); border-radius: var(--radius-lg); background-color: var(--bg-surface); padding: 1.5rem; box-shadow: var(--shadow); margin-bottom: 1.5rem;">
+              <!-- Post Header -->
+              <div class="post-header" style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                  <div class="post-author-avatar" style="width: 40px; height: 40px; border-radius: 50%; background: #eef2ff; color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem; border: 1px solid rgba(79, 70, 229, 0.2);">
+                      @GetInitials(post.Author?.FullName ?? post.Author?.Email ?? "U")
+                  </div>
+                  <div class="post-author-info" style="flex: 1; min-width: 0;">
+                      <div class="post-author-name-row" style="display: flex; align-items: center; gap: 0.5rem;">
+                          <span class="post-author-name" style="font-weight: 700; color: var(--text-primary);">@(post.Author?.FullName ?? post.Author?.Email ?? "User")</span>
+                          @if (userRoles.TryGetValue(post.AuthorId, out var role))
+                          {
+                              <span class="role-badge role-@role.ToLower()">@role</span>
+                          }
+                      </div>
+                      <div class="post-meta-info" style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem;">
+                          <span class="post-time" title="@post.CreatedAt.ToLocalTime().ToString("g")">@GetRelativeTime(post.CreatedAt)</span>
+                          <span class="post-meta-divider">•</span>
+                          <span class="post-visibility" style="display: inline-flex; align-items: center; gap: 2px;">
+                              @if (post.Visibility == PostVisibility.Public)
+                              {
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                              }
+                              else
+                              {
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline-block; vertical-align: middle;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                              }
+                              <span>@post.Visibility</span>
+                          </span>
+                      </div>
+                  </div>
+              </div>
+
+              <!-- Post Content -->
+              <div class="post-content" style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 1.25rem; white-space: pre-wrap;">
+                  @post.Content
+              </div>
+
+              <!-- Post Stats -->
+              <div class="post-stats-row" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color); font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                  <div class="post-stats-likes" style="display: flex; align-items: center; gap: 4px;">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="#E02424" stroke="#E02424" style="display: inline-block; vertical-align: middle;"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                      <span>@post.Reactions.Count @(post.Reactions.Count == 1 ? "like" : "likes")</span>
+                  </div>
+                  <div class="post-stats-comments">
+                      <span>@post.Comments.Count @(post.Comments.Count == 1 ? "comment" : "comments")</span>
+                  </div>
+              </div>
+
+              <!-- Post Actions Bar -->
+              <div class="post-actions-bar" style="display: flex; align-items: center; gap: 0.5rem;">
+                  @{
+                      bool hasReacted = post.Reactions.Any(r => r.UserId == currentUserId);
+                  }
+                  <button class="post-action-btn like @(hasReacted ? "active" : "")" @onclick="ToggleLove" style="flex: 1; padding: 0.6rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border: none; background: transparent; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; transition: var(--transition-smooth);">
+                      @if (hasReacted)
+                      {
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="#E02424" stroke="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                          <span style="color: #E02424;">Liked</span>
+                      }
+                      else
+                      {
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                          <span>Like</span>
+                      }
+                  </button>
+                  <button class="post-action-btn comment" @onclick="FocusCommentInput" style="flex: 1; padding: 0.6rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border: none; background: transparent; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; transition: var(--transition-smooth);">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                      <span>Comment</span>
+                  </button>
+              </div>
+          </div>
+
+          <!-- Comments Section Panel -->
+          <div class="glass-panel" style="padding: 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--border-color); background-color: var(--bg-surface); box-shadow: var(--shadow);">
+              <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-top: 0; margin-bottom: 1.25rem; font-family: 'Outfit', sans-serif;">Comments</h3>
+
+              <div class="comments-list" style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+                  @if (!post.Comments.Any())
+                  {
+                      <p style="text-align: center; color: var(--text-muted); font-size: 0.88rem; margin: 2rem 0;">No comments yet. Be the first to comment!</p>
+                  }
+                  else
+                  {
+                      @foreach (var comment in post.Comments.OrderBy(c => c.CreatedAt))
+                      {
+                          <div class="comment-item" style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                              <div class="comment-author-avatar" style="width: 32px; height: 32px; border-radius: 50%; background: #eef2ff; color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.95rem; border: 1px solid rgba(79, 70, 229, 0.2); flex-shrink: 0;">
+                                  @GetInitials(comment.Author?.FullName ?? comment.Author?.Email ?? "C")
+                              </div>
+                              <div class="comment-content-container" style="flex: 1; min-width: 0;">
+                                  <div class="comment-bubble" style="background-color: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.65rem 0.85rem; display: inline-block; max-width: 100%;">
+                                      <div class="comment-author-header" style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; flex-wrap: wrap;">
+                                          <span class="comment-author-name" style="font-weight: 700; font-size: 0.85rem; color: var(--text-primary);">@(comment.Author?.FullName ?? comment.Author?.Email ?? "User")</span>
+                                          @if (userRoles.TryGetValue(comment.AuthorId, out var cRole))
+                                          {
+                                              <span class="role-badge role-@cRole.ToLower()" style="font-size: 0.62rem; padding: 0.05rem 0.3rem;">@cRole</span>
+                                          }
+                                      </div>
+                                      <p class="comment-text" style="font-size: 0.88rem; color: var(--text-secondary); margin: 0; line-height: 1.4; word-break: break-word;">@comment.Content</p>
+                                  </div>
+                                  <div class="comment-meta" style="margin-top: 0.25rem; font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.5rem; margin-left: 0.25rem;">
+                                      <span class="comment-time">@GetRelativeTime(comment.CreatedAt)</span>
+                                      @if (comment.AuthorId == currentUserId || post.AuthorId == currentUserId)
+                                      {
+                                          <span class="comment-meta-divider">•</span>
+                                          <button class="comment-delete-link" @onclick="() => ConfirmDeleteComment(comment)" style="background: none; border: none; color: var(--danger); font-weight: 700; cursor: pointer; padding: 0;">Delete</button>
+                                      }
+                                  </div>
+                              </div>
+                          </div>
+                      }
+                  }
+              </div>
+
+              <!-- New Comment Box -->
+              <div class="new-comment-box" style="display: flex; gap: 0.75rem; align-items: center; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+                  <div class="new-comment-avatar" style="width: 32px; height: 32px; border-radius: 50%; background: #eef2ff; color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.95rem; border: 1px solid rgba(79, 70, 229, 0.2); flex-shrink: 0;">
+                      @AvatarInitials
+                  </div>
+                  <div class="new-comment-input-row" style="flex: 1; display: flex; align-items: center; gap: 0.5rem; background-color: var(--bg-panel); border: 1px solid var(--border-2); border-radius: var(--radius-sm); padding: 0.25rem 0.5rem;">
+                      <input id="comment-input-field" type="text" class="new-comment-input" placeholder="Write a comment..." @bind="newCommentContent" @onkeydown="HandleKeyDown" style="flex: 1; border: none; background: transparent; padding: 0.4rem; font-size: 0.85rem; color: var(--text-primary); outline: none;" />
+                      <button class="new-comment-send-btn" @onclick="SubmitComment" disabled="@(string.IsNullOrWhiteSpace(newCommentContent))" title="Post comment" style="border: none; background: transparent; color: var(--primary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0.25rem; transition: var(--transition-smooth); opacity: @(string.IsNullOrWhiteSpace(newCommentContent) ? "0.4" : "1");">
+                          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                      </button>
+                  </div>
+              </div>
+          </div>
+      }
+  </div>
+</div>
+
+@if (showDeleteConfirmation)
+{
+    <div class="confirm-modal-backdrop" @onclick="CancelDelete">
+        <div class="confirm-modal-card" @onclick:stopPropagation>
+            <div class="confirm-modal-header">
+                <h3>Confirm Delete</h3>
+            </div>
+            <div class="confirm-modal-body">
+                <p>@deleteConfirmationMessage</p>
+            </div>
+            <div class="confirm-modal-actions">
+                <button class="confirm-btn cancel" @onclick="CancelDelete">Cancel</button>
+                <button class="confirm-btn delete" @onclick="ConfirmDelete">Delete</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string CurrentRole { get; set; } = "";
+    [Parameter] public int PostId { get; set; }
+
+    private bool loading = true;
+    private FeedPost? post;
+    private string? currentUserId;
+    private string AvatarInitials = "U";
+    private string newCommentContent = "";
+    private Dictionary<string, string> userRoles = new Dictionary<string, string>();
+
+    private bool showDeleteConfirmation = false;
+    private string deleteConfirmationMessage = "";
+    private Func<Task>? pendingDeleteAction = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var appUser = await UserManager.GetUserAsync(user);
+            var name = appUser?.FullName ?? user.Identity.Name ?? "U";
+            AvatarInitials = GetInitials(name);
+            await LoadPostAsync();
+        }
+    }
+
+    private async Task LoadPostAsync()
+    {
+        loading = true;
+        post = await FeedService.GetPostDetailByIdAsync(PostId);
+
+        if (post != null)
+        {
+            var userIds = new List<string> { post.AuthorId };
+            userIds.AddRange(post.Comments.Select(c => c.AuthorId));
+            userRoles = await FeedService.GetUserRolesForFeedAsync(userIds.Distinct());
+        }
+        loading = false;
+    }
+
+    private async Task GoBack()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("window.history.back");
+        }
+        catch
+        {
+            NavigationManager.NavigateTo($"/{CurrentRole.ToLower()}/feed#post-{PostId}");
+        }
+    }
+
+    private async Task ToggleLove()
+    {
+        if (post == null || currentUserId == null) return;
+        await FeedService.ToggleReactionAsync(post.Id, currentUserId);
+        await LoadPostAsync();
+    }
+
+    private async Task SubmitComment()
+    {
+        if (post == null || currentUserId == null || string.IsNullOrWhiteSpace(newCommentContent)) return;
+        await FeedService.AddCommentAsync(post.Id, currentUserId, newCommentContent);
+        newCommentContent = "";
+        await LoadPostAsync();
+    }
+
+    private async Task HandleKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SubmitComment();
+        }
+    }
+
+    private void ConfirmDeleteComment(FeedPostComment comment)
+    {
+        deleteConfirmationMessage = "Are you sure you want to delete this comment? This action cannot be undone.";
+        pendingDeleteAction = async () =>
+        {
+            await FeedService.DeleteCommentAsync(comment.Id);
+            await LoadPostAsync();
+        };
+        showDeleteConfirmation = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirmation = false;
+        pendingDeleteAction = null;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (pendingDeleteAction != null)
+        {
+            await pendingDeleteAction();
+        }
+        showDeleteConfirmation = false;
+        pendingDeleteAction = null;
+    }
+
+    private void FocusCommentInput()
+    {
+        // For simplicity in Blazor, this highlights the new comment field
+    }
+
+    private string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        return name.Substring(0, 1).ToUpper();
+    }
+
+    private string GetRelativeTime(DateTime dt)
+    {
+        var span = DateTime.UtcNow - dt;
+        if (span.TotalMinutes < 1) return "Just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes} minutes ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours} hours ago";
+        return $"{(int)span.TotalDays} days ago";
+    }
+}

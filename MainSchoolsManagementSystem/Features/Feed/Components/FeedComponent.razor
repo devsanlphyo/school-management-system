@@ -50,7 +50,7 @@
                               }
                           </div>
                           <div class="post-meta-info">
-                              <span class="post-time" title="@post.CreatedAt.ToLocalTime().ToString("g")">@GetRelativeTime(post.CreatedAt)</span>
+                              <span class="post-time" title="View details (@post.CreatedAt.ToLocalTime().ToString("g"))" @onclick="() => NavigateToPostDetail(post.Id)" style="cursor: pointer; text-decoration: underline;">@GetRelativeTime(post.CreatedAt)</span>
                               <span class="post-meta-divider">•</span>
                               <span class="post-visibility" title="@post.Visibility.ToString()">
                                   @if (post.Visibility == PostVisibility.Public)
@@ -354,5 +354,10 @@
     {
         if (string.IsNullOrEmpty(userId)) return;
         NavigationManager.NavigateTo($"/{CurrentRole.ToLower()}/profile/{userId}");
+    }
+
+    private void NavigateToPostDetail(int postId)
+    {
+        NavigationManager.NavigateTo($"/{CurrentRole.ToLower()}/feed/post/{postId}");
     }
 }

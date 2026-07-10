@@ -129,7 +129,7 @@
                     HttpContext.Response.Cookies.Append("TrustedDeviceToken", newTrustedToken, new CookieOptions
                     {
                         HttpOnly = true,
-                        Secure = true,
+                        Secure = HttpContext.Request.IsHttps,
                         SameSite = SameSiteMode.Strict,
                         Expires = DateTimeOffset.UtcNow.AddDays(30)
                     });
@@ -145,7 +145,7 @@
                 HttpContext.Response.Cookies.Append("TrustedDeviceToken", newTrustedToken, new CookieOptions
                 {
                     HttpOnly = true,
-                    Secure = true,
+                    Secure = HttpContext.Request.IsHttps,
                     SameSite = SameSiteMode.Strict,
                     Expires = DateTimeOffset.UtcNow.AddDays(30)
                 });

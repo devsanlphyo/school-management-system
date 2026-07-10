@@ -1,0 +1,11 @@
+@page "/officer/feed/post/{PostId:int}"
+@layout MainSchoolsManagementSystem.Components.Layout.OfficerLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Officer")]
+
+<PageTitle>Post Details - Officer</PageTitle>
+
+<MainSchoolsManagementSystem.Features.Feed.Components.PostDetailComponent CurrentRole="Officer" PostId="PostId" />
+
+@code {
+    [Parameter] public int PostId { get; set; }
+}

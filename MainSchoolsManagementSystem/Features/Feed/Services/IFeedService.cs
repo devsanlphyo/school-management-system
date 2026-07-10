@@ -18,5 +18,6 @@ namespace MainSchoolsManagementSystem.Features.Feed.Services
         Task UpdatePostContentAndVisibilityAsync(int postId, string content, PostVisibility visibility);
         Task DeleteCommentAsync(int commentId);
         Task<Dictionary<string, string>> GetUserRolesForFeedAsync(IEnumerable<string> userIds);
+        Task<FeedPost?> GetPostDetailByIdAsync(int postId);
     }
 }

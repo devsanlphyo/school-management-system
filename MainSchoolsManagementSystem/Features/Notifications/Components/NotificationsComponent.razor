@@ -3,6 +3,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
 @inject INotificationService NotificationService
+@implements IDisposable
 
 <div class="notifications-container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
@@ -191,6 +192,7 @@
             currentUserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!string.IsNullOrEmpty(currentUserId))
             {
+                MainSchoolsManagementSystem.Features.Notifications.Services.NotificationService.OnNotificationReceived += HandleNotificationReceived;
                 await LoadNotificationsAsync();
                 
                 // Automatically mark all as read on load
@@ -215,7 +217,7 @@
     private async Task NavigateToPost(Notification notification)
     {
         await NotificationService.MarkAsReadAsync(notification.Id);
-        NavigationManager.NavigateTo($"/{CurrentRole.ToLower()}/feed#post-{notification.FeedPostId}");
+        NavigationManager.NavigateTo($"/{CurrentRole.ToLower()}/feed/post/{notification.FeedPostId}");
     }
 
     private string GetInitials(string name)
@@ -234,8 +236,25 @@
     {
         var span = DateTime.UtcNow - dt;
         if (span.TotalMinutes < 1) return "Just now";
-        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m ago";
-        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h ago";
-        return $"{(int)span.TotalDays}d ago";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes} minutes ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours} hours ago";
+        return $"{(int)span.TotalDays} days ago";
+    }
+
+    private void HandleNotificationReceived(string recipientId)
+    {
+        if (recipientId == currentUserId)
+        {
+            InvokeAsync(async () =>
+            {
+                await LoadNotificationsAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        MainSchoolsManagementSystem.Features.Notifications.Services.NotificationService.OnNotificationReceived -= HandleNotificationReceived;
     }
 }

@@ -262,6 +262,14 @@ namespace MainSchoolsManagementSystem.Data
                 var comment = await feedService.AddCommentAsync(post.Id, triggerUser.Id, "Great post!");
                 Console.WriteLine("[SUCCESS] Trigger User added a comment.");
 
+                // Test Post Details Service
+                var detailedPost = await feedService.GetPostDetailByIdAsync(post.Id);
+                if (detailedPost == null) throw new Exception("GetPostDetailByIdAsync returned null.");
+                if (detailedPost.Author?.Id != owner.Id) throw new Exception("Author on detailed post is missing or mismatched.");
+                if (detailedPost.Comments.Count != 1) throw new Exception($"Expected 1 comment on detailed post, got {detailedPost.Comments.Count}");
+                if (detailedPost.Comments.First().Author?.Id != triggerUser.Id) throw new Exception("Comment Author mismatch on detailed post.");
+                Console.WriteLine("[SUCCESS] GetPostDetailByIdAsync loaded all authors, media, and comments correctly.");
+
                 // Verify comment notification was created
                 var count = await notificationService.GetUnreadCountAsync(owner.Id);
                 if (count != 1) throw new Exception($"Expected 1 unread notification, got {count}");
