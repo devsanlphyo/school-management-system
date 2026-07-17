@@ -211,6 +211,17 @@ namespace MainSchoolsManagementSystem.Features.Feed.Services
             }
         }
 
+        public async Task UpdateCommentAsync(int commentId, string newContent)
+        {
+            using var context = await _dbFactory.CreateDbContextAsync();
+            var comment = await context.FeedPostComments.FindAsync(commentId);
+            if (comment != null)
+            {
+                comment.Content = newContent;
+                await context.SaveChangesAsync();
+            }
+        }
+
         public async Task DeleteCommentAsync(int commentId)
         {
             using var context = await _dbFactory.CreateDbContextAsync();

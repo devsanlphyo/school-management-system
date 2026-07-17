@@ -25,7 +25,7 @@
         }
         else
         {
-            <EditForm Model="@newRequest" OnValidSubmit="SubmitRequest" class="d-flex flex-column gap-3">
+            <EditForm Model="@newRequest" OnValidSubmit="PromptSubmitConfirmation" class="d-flex flex-column gap-3">
                 <DataAnnotationsValidator />
                 
                 <div class="form-group" style="display: flex; gap: 1rem;">
@@ -128,10 +128,29 @@
     </div>
 </div>
 
+@if (showSubmitConfirmation)
+{
+    <div class="confirm-modal-backdrop" @onclick="CancelSubmit">
+        <div class="confirm-modal-card" @onclick:stopPropagation>
+            <div class="confirm-modal-header">
+                <h3>Confirm Submission</h3>
+            </div>
+            <div class="confirm-modal-body">
+                <p>Are you sure you want to submit this leave request from @newRequest.StartDate.ToString("MMM dd") to @newRequest.EndDate.ToString("MMM dd")?</p>
+            </div>
+            <div class="confirm-modal-actions">
+                <button class="confirm-btn cancel" @onclick="CancelSubmit">Cancel</button>
+                <button class="confirm-btn delete" style="background-color: var(--primary); color: white;" @onclick="ConfirmSubmitRequest">Submit</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private string? userId;
     private bool isMaintenanceMode = false;
     private bool isSubmitting = false;
+    private bool showSubmitConfirmation = false;
     private DateTime? filterDate;
     private List<LeaveRequest> myRequests = new();
     private LeaveRequestInputModel newRequest = new() { StartDate = DateTime.Today.AddDays(1), EndDate = DateTime.Today.AddDays(1) };
@@ -179,8 +198,21 @@
         myRequests = await LeaveRequestService.GetUserLeaveRequestsAsync(userId);
     }
 
-    private async Task SubmitRequest()
+    private void PromptSubmitConfirmation()
     {
+        if (isMaintenanceMode || string.IsNullOrEmpty(userId)) return;
+        showSubmitConfirmation = true;
+    }
+    
+    private void CancelSubmit()
+    {
+        showSubmitConfirmation = false;
+    }
+
+    private async Task ConfirmSubmitRequest()
+    {
+        showSubmitConfirmation = false;
+        
         if (isMaintenanceMode || string.IsNullOrEmpty(userId)) return;
 
         isSubmitting = true;

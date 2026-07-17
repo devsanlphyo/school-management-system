@@ -18,6 +18,19 @@
     <script src="js/feed.js"></script>
     <script src="_framework/blazor.web.js"></script>
     <script>navigator.serviceWorker.register('service-worker.js');</script>
+    <script>
+        window.downloadFileFromText = function(fileName, content) {
+            const blob = new Blob([content], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+    </script>
 </body>
 
 </html>

@@ -36,7 +36,16 @@
       
       <!-- User profile header -->
       <div class="create-post-user-header">
-        <div class="feed-avatar">@AvatarInitials</div>
+        <div class="feed-avatar">
+            @if (!string.IsNullOrEmpty(CurrentUserProfilePicturePath))
+            {
+                <img src="@CurrentUserProfilePicturePath" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" alt="Your Avatar" />
+            }
+            else
+            {
+                @AvatarInitials
+            }
+        </div>
         <div class="user-header-info">
           <h4>@CurrentUserName</h4>
           <div class="visibility-selector-container">
@@ -234,6 +243,7 @@
     private string? currentUserId;
     private string CurrentUserName = "User";
     private string AvatarInitials = "U";
+    private string? CurrentUserProfilePicturePath;
     private bool isSubmitting = false;
     private string errorMessage = "";
     private const long MAX_FILE_SIZE = 210 * 1024 * 1024; // ~210MB
@@ -272,6 +282,7 @@
                 CurrentUserName = user.Identity.Name ?? "User";
             }
             AvatarInitials = CurrentUserName.Substring(0, 1).ToUpper();
+            CurrentUserProfilePicturePath = appUser?.ProfilePicturePath;
         }
 
         if (PostId.HasValue)

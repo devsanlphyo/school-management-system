@@ -5,15 +5,63 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
 @inject IFeedService FeedService
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<MainSchoolsManagementSystem.Data.ApplicationDbContext> DbContextFactory
 @inject UserManager<ApplicationUser> UserManager
-
 <div class="feed-container">
+  @if (activeAnnouncements != null && activeAnnouncements.Any())
+  {
+      <div class="system-announcements" style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; position: sticky; top: 0; z-index: 100;">
+          @foreach (var announcement in activeAnnouncements)
+          {
+              <div class="announcement-banner" style="background: @(GetAnnouncementColor(announcement.Type)); padding: 1rem 1.25rem; border-radius: 12px; display: flex; align-items: flex-start; gap: 1rem; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                  <div class="announcement-icon" style="margin-top: 2px;">
+                      @if (announcement.Type == "Warning")
+                      {
+                          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                      }
+                      else if (announcement.Type == "Error")
+                      {
+                          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                      }
+                      else if (announcement.Type == "Success")
+                      {
+                          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                      }
+                      else
+                      {
+                          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                      }
+                  </div>
+                  <div class="announcement-text" style="flex: 1; font-weight: 500; line-height: 1.5; font-size: 0.95rem;">
+                      @announcement.Message
+                  </div>
+              </div>
+          }
+      </div>
+  }
+
   <div class="create-post-card">
     <div class="create-post-top-row">
-      <div class="feed-avatar" @onclick="NavigateToCreate">@AvatarInitials</div>
+      <div class="feed-avatar" @onclick="NavigateToCreate">
+          @if (!string.IsNullOrEmpty(CurrentUserProfilePicturePath))
+          {
+              <img src="@CurrentUserProfilePicturePath" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" alt="User Avatar" />
+          }
+          else
+          {
+              @AvatarInitials
+          }
+      </div>
       <div class="feed-create-input" @onclick="NavigateToCreate">What's on your mind?</div>
     </div>
   </div>
+  
+  <Microsoft.AspNetCore.Components.Sections.SectionContent SectionName="top-navbar-center">
+      <div class="feed-search-bar" style="width: 100%; min-width: 300px;">
+          <input type="text" @bind="searchQuery" @bind:event="oninput" placeholder="Search posts by author name..." class="form-control" style="width: 100%; padding: 0.5rem 1rem; border-radius: 20px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);" />
+      </div>
+  </Microsoft.AspNetCore.Components.Sections.SectionContent>
 
 
   @if (posts == null)
@@ -22,24 +70,31 @@
           <p>Loading feed...</p>
       </div>
   }
-  else if (!posts.Any())
+  else if (!FilteredPosts.Any())
   {
       <div class="glass-panel" style="padding: 3rem; text-align: center; color: var(--text-secondary);">
           <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" style="margin-bottom: 1rem; color: var(--text-muted);"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-          <p style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.25rem;">No posts yet</p>
-          <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0;">Be the first one to post something to the feed!</p>
+          <p style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.25rem;">No posts found</p>
+          <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0;">Try adjusting your search criteria or post something new!</p>
       </div>
   }
   else
   {
       <div class="posts-list">
-          @foreach (var post in posts)
+          @foreach (var post in FilteredPosts)
           {
               <div class="post-card" id="post-@post.Id">
                   <!-- Post Header -->
                   <div class="post-header">
                       <div class="post-author-avatar" @onclick="() => NavigateToProfile(post.AuthorId)" style="cursor: pointer;" title="View Profile">
-                          @GetInitials(post.Author?.FullName ?? post.Author?.Email ?? "U")
+                          @if (!string.IsNullOrEmpty(post.Author?.ProfilePicturePath))
+                          {
+                              <img src="@post.Author.ProfilePicturePath" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" alt="Author Avatar" />
+                          }
+                          else
+                          {
+                              @GetInitials(post.Author?.FullName ?? post.Author?.Email ?? "U")
+                          }
                       </div>
                       <div class="post-author-info">
                           <div class="post-author-name-row">
@@ -92,8 +147,27 @@
                   <div class="post-content">
                       @post.Content
                   </div>
-
-
+                  
+                  @if (post.MediaItems != null && post.MediaItems.Any())
+                  {
+                      <div class="media-preview-container" style="margin-top: 1rem; margin-bottom: 1rem;">
+                          <div class="media-preview-grid count-@Math.Min(4, post.MediaItems.Count)">
+                              @foreach (var media in post.MediaItems.OrderBy(m => m.SortOrder).Take(4))
+                              {
+                                  <div class="preview-item">
+                                      @if (media.ContentType != null && media.ContentType.StartsWith("image/"))
+                                      {
+                                          <img src="/api/feed/media/@media.StoredFileName/view" class="preview-image" />
+                                      }
+                                      else if (media.ContentType != null && media.ContentType.StartsWith("video/"))
+                                      {
+                                          <video src="/api/feed/media/@media.StoredFileName/view" class="preview-video" muted controls></video>
+                                      }
+                                  </div>
+                              }
+                          </div>
+                      </div>
+                  }
 
                   <!-- Post Stats -->
                   <div class="post-stats-row">
@@ -139,27 +213,52 @@
                               {
                                   <div class="comment-item">
                                       <div class="comment-author-avatar" @onclick="() => NavigateToProfile(comment.AuthorId)" style="cursor: pointer;" title="View Profile">
-                                          @GetInitials(comment.Author?.FullName ?? comment.Author?.Email ?? "C")
+                                          @if (!string.IsNullOrEmpty(comment.Author?.ProfilePicturePath))
+                                          {
+                                              <img src="@comment.Author.ProfilePicturePath" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" alt="Commenter Avatar" />
+                                          }
+                                          else
+                                          {
+                                              @GetInitials(comment.Author?.FullName ?? comment.Author?.Email ?? "C")
+                                          }
                                       </div>
                                       <div class="comment-content-container">
-                                          <div class="comment-bubble">
-                                              <div class="comment-author-header">
-                                                  <span class="comment-author-name" @onclick="() => NavigateToProfile(comment.AuthorId)" style="cursor: pointer;" title="View Profile">@(comment.Author?.FullName ?? comment.Author?.Email ?? "User")</span>
-                                                  @if (userRoles.TryGetValue(comment.AuthorId, out var cRole))
+                                          @if (editingCommentId == comment.Id)
+                                          {
+                                              <div class="comment-edit-box">
+                                                  <input type="text" class="new-comment-input" @bind="editingCommentText" @onkeydown="@(async e => { if (e.Key == "Enter") await SubmitEditComment(comment.Id); })" style="width: 100%; margin-bottom: 0.5rem;" />
+                                                  <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                                      <button class="btn-premium" style="padding: 0.2rem 0.6rem; font-size: 0.8rem;" @onclick="CancelEditComment">Cancel</button>
+                                                      <button class="btn-premium btn-primary-custom" style="padding: 0.2rem 0.6rem; font-size: 0.8rem;" @onclick="() => SubmitEditComment(comment.Id)">Save</button>
+                                                  </div>
+                                              </div>
+                                          }
+                                          else
+                                          {
+                                              <div class="comment-bubble">
+                                                  <div class="comment-author-header">
+                                                      <span class="comment-author-name" @onclick="() => NavigateToProfile(comment.AuthorId)" style="cursor: pointer;" title="View Profile">@(comment.Author?.FullName ?? comment.Author?.Email ?? "User")</span>
+                                                      @if (userRoles.TryGetValue(comment.AuthorId, out var cRole))
+                                                      {
+                                                          <span class="role-badge role-@cRole.ToLower()">@cRole</span>
+                                                      }
+                                                  </div>
+                                                  <p class="comment-text">@comment.Content</p>
+                                              </div>
+                                              <div class="comment-meta">
+                                                  <span class="comment-time">@GetRelativeTime(comment.CreatedAt)</span>
+                                                  @if (comment.AuthorId == currentUserId || post.AuthorId == currentUserId)
                                                   {
-                                                      <span class="role-badge role-@cRole.ToLower()">@cRole</span>
+                                                      <span class="comment-meta-divider">•</span>
+                                                      <button class="comment-delete-link" @onclick="() => ConfirmDeleteComment(comment)">Delete</button>
+                                                  }
+                                                  @if (comment.AuthorId == currentUserId)
+                                                  {
+                                                      <span class="comment-meta-divider">•</span>
+                                                      <button class="comment-delete-link" @onclick="() => StartEditComment(comment)">Edit</button>
                                                   }
                                               </div>
-                                              <p class="comment-text">@comment.Content</p>
-                                          </div>
-                                          <div class="comment-meta">
-                                              <span class="comment-time">@GetRelativeTime(comment.CreatedAt)</span>
-                                              @if (comment.AuthorId == currentUserId || post.AuthorId == currentUserId)
-                                              {
-                                                  <span class="comment-meta-divider">•</span>
-                                                  <button class="comment-delete-link" @onclick="() => ConfirmDeleteComment(comment)">Delete</button>
-                                              }
-                                          </div>
+                                          }
                                       </div>
                                   </div>
                               }
@@ -167,10 +266,20 @@
 
                           <!-- New Comment Box -->
                           <div class="new-comment-box">
-                              <div class="new-comment-avatar">@AvatarInitials</div>
+                              <div class="new-comment-avatar">
+                                  @if (!string.IsNullOrEmpty(CurrentUserProfilePicturePath))
+                                  {
+                                      <img src="@CurrentUserProfilePicturePath" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" alt="Your Avatar" />
+                                  }
+                                  else
+                                  {
+                                      @AvatarInitials
+                                  }
+                              </div>
                               <div class="new-comment-input-row">
-                                  <input type="text" class="new-comment-input" placeholder="Write a comment..." @bind="newCommentText[post.Id]" @onkeydown="@(async e => { if (e.Key == "Enter") await SubmitComment(post); })" />
-                                  <button class="new-comment-send-btn" @onclick="() => SubmitComment(post)" disabled="@(string.IsNullOrWhiteSpace(newCommentText[post.Id]))" title="Post comment">
+                                  <input type="text" class="new-comment-input" placeholder="Write a comment..." @bind="newCommentText[post.Id]" @bind:event="oninput" @onkeydown="@(async e => { if (e.Key == "Enter") await SubmitComment(post); })" />
+                                  <button class="new-comment-send-btn" @onclick="() => SubmitComment(post)" disabled="@(string.IsNullOrWhiteSpace(newCommentText[post.Id]))" title="Post comment" style="display: flex; align-items: center; gap: 4px; padding: 0 12px; width: auto; border-radius: 16px;">
+                                      <span>Post</span>
                                       <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                                   </button>
                               </div>
@@ -207,7 +316,20 @@
     [Parameter] public string CurrentRole { get; set; } = "";
     
     private string AvatarInitials = "U";
+    private string? CurrentUserProfilePicturePath;
     private List<FeedPost>? posts;
+    private string searchQuery = "";
+    
+    private IEnumerable<FeedPost> FilteredPosts => 
+        string.IsNullOrWhiteSpace(searchQuery) 
+        ? (posts ?? Enumerable.Empty<FeedPost>()) 
+        : (posts ?? Enumerable.Empty<FeedPost>()).Where(p => 
+            (p.Author?.FullName != null && p.Author.FullName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ||
+            (p.Author?.Email != null && p.Author.Email.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ||
+            (p.Author?.UserName != null && p.Author.UserName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))
+        );
+
+    private List<MainSchoolsManagementSystem.Features.Admin.Models.SystemAnnouncement>? activeAnnouncements;
     private string? currentUserId;
     private HashSet<int> openCommentSections = new HashSet<int>();
     private Dictionary<int, string> newCommentText = new Dictionary<int, string>();
@@ -218,6 +340,30 @@
     private string deleteConfirmationMessage = "";
     private Func<Task>? pendingDeleteAction = null;
     
+    private int? editingCommentId = null;
+    private string editingCommentText = "";
+
+    private void StartEditComment(FeedPostComment comment)
+    {
+        editingCommentId = comment.Id;
+        editingCommentText = comment.Content;
+    }
+
+    private void CancelEditComment()
+    {
+        editingCommentId = null;
+        editingCommentText = "";
+    }
+
+    private async Task SubmitEditComment(int commentId)
+    {
+        if (string.IsNullOrWhiteSpace(editingCommentText)) return;
+
+        await FeedService.UpdateCommentAsync(commentId, editingCommentText);
+        editingCommentId = null;
+        editingCommentText = "";
+        await LoadPostsAsync();
+    }
 
 
     protected override async Task OnInitializedAsync()
@@ -230,8 +376,31 @@
             var appUser = await UserManager.GetUserAsync(user);
             var name = appUser?.FullName ?? user.Identity.Name ?? "U";
             AvatarInitials = GetInitials(name);
+            CurrentUserProfilePicturePath = appUser?.ProfilePicturePath;
+            await LoadAnnouncementsAsync();
             await LoadPostsAsync();
         }
+    }
+
+    private async Task LoadAnnouncementsAsync()
+    {
+        using var db = await DbContextFactory.CreateDbContextAsync();
+        var now = DateTime.UtcNow;
+        activeAnnouncements = await db.SystemAnnouncements
+            .Where(a => a.IsActive && a.StartDate <= now && a.EndDate >= now)
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync();
+    }
+
+    private string GetAnnouncementColor(string type)
+    {
+        return type switch
+        {
+            "Warning" => "linear-gradient(135deg, #f59e0b, #d97706)",
+            "Error" => "linear-gradient(135deg, #ef4444, #dc2626)",
+            "Success" => "linear-gradient(135deg, #10b981, #059669)",
+            _ => "linear-gradient(135deg, #3b82f6, #2563eb)" // Info
+        };
     }
 
     private string GetInitials(string name)

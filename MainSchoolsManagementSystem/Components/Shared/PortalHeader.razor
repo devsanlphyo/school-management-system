@@ -27,14 +27,26 @@
             </div>
         }
     </div>
+    
+    <div style="flex: 1; display: flex; justify-content: center; padding: 0 1rem; max-width: 600px; margin: 0 auto;">
+        <Microsoft.AspNetCore.Components.Sections.SectionOutlet SectionName="top-navbar-center" />
+    </div>
+
     <div class="header-profile" style="display: flex; align-items: center; gap: 0.5rem;">
         @if (!string.IsNullOrEmpty(UserDisplayName))
         {
             <span class="header-user-name" style="font-weight: 500; font-size: 0.88rem; color: var(--text-secondary); display: inline-block;">@UserDisplayName</span>
         }
-        <div class="avatar-circle" style="width: 36px; height: 36px; border-radius: 50%; background: #eef2ff; color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem; border: 1px solid rgba(79, 70, 229, 0.2);">
-            @(string.IsNullOrWhiteSpace(UserDisplayName) ? "U" : UserDisplayName[0].ToString().ToUpper())
-        </div>
+        @if (!string.IsNullOrEmpty(UserProfilePicturePath))
+        {
+            <img src="@UserProfilePicturePath" alt="Profile Picture" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(79, 70, 229, 0.2);" />
+        }
+        else
+        {
+            <div class="avatar-circle" style="width: 36px; height: 36px; border-radius: 50%; background: #eef2ff; color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem; border: 1px solid rgba(79, 70, 229, 0.2);">
+                @(string.IsNullOrWhiteSpace(UserDisplayName) ? "U" : UserDisplayName[0].ToString().ToUpper())
+            </div>
+        }
     </div>
 </header>
 
@@ -42,6 +54,7 @@
     [Parameter] public string? Title { get; set; }
     [Parameter] public bool ShowSchoolIcon { get; set; } = false;
     [Parameter] public string? UserDisplayName { get; set; }
+    [Parameter] public string? UserProfilePicturePath { get; set; }
     [Parameter] public EventCallback OnToggleSidebar { get; set; }
     [Parameter] public bool ShowBackButton { get; set; } = false;
     [Parameter] public EventCallback OnBackClick { get; set; }

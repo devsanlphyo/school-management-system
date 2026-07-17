@@ -3,6 +3,8 @@
 @implements IDisposable
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@using MainSchoolsManagementSystem.Data
 
 <div class='admin-layout'>
     <div class='sidebar-overlay @(isSidebarOpen ? "show" : "")' @onclick='ToggleSidebar'></div>
@@ -49,14 +51,10 @@
             </NavLink>
         </nav>
         <div class='sidebar-footer'>
-            <form action='/Account/Logout' method='post'>
-                <AntiforgeryToken />
-                <input type='hidden' name='ReturnUrl' value='' />
-                <button type='submit' class='btn-premium btn-secondary-custom' style='width: 100%;'>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 0.5rem;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                    Logout
-                </button>
-            </form>
+            <button type="button" class="btn-premium btn-secondary-custom" style="width: 100%;" @onclick="ShowLogoutConfirm">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 0.5rem;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                Logout
+            </button>
         </div>
     </aside>
 
@@ -68,6 +66,7 @@
             Title="@(isPostDetail ? "Post Details" : "Director Portal")" 
             ShowSchoolIcon="false" 
             UserDisplayName="@userDisplayName" 
+            UserProfilePicturePath="@profilePictureUrl"
             OnToggleSidebar="ToggleSidebar"
             ShowBackButton="@isPostDetail"
             OnBackClick="GoBack" />
@@ -75,19 +74,46 @@
             @Body
         </div>
     </main>
+
+    @if (showLogoutConfirm)
+    {
+        <div class="confirm-modal-backdrop" @onclick="CancelLogout">
+            <div class="confirm-modal-card" @onclick:stopPropagation>
+                <div class="confirm-modal-header">
+                    <h3>Confirm Logout</h3>
+                </div>
+                <div class="confirm-modal-body">
+                    <p>Are you sure you want to log out?</p>
+                </div>
+                <div class="confirm-modal-actions">
+                    <button class="confirm-btn cancel" @onclick="CancelLogout">Cancel</button>
+                    <form action="/Account/Logout" method="post" style="display:inline; margin:0;">
+                        <AntiforgeryToken />
+                        <button type="submit" class="confirm-btn delete" style="background-color: var(--danger);">Logout</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
 
     private string userDisplayName = "";
+    private string profilePictureUrl = "/uploads/profile-pictures/default-avatar.png";
     private bool isSidebarOpen = false;
     private int unreadNotificationsCount = 0;
+    private bool showLogoutConfirm = false;
 
     private void ToggleSidebar() { isSidebarOpen = !isSidebarOpen; }
     private void CloseSidebar() { isSidebarOpen = false; }
+    
+    private void ShowLogoutConfirm() => showLogoutConfirm = true;
+    private void CancelLogout() => showLogoutConfirm = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -96,10 +122,26 @@
         await UpdateUnreadCountAsync();
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-        if (user.Identity?.IsAuthenticated == true)
+        var userPrincipal = authState.User;
+        if (userPrincipal.Identity?.IsAuthenticated == true)
         {
-            userDisplayName = user.Identity.Name ?? "Director";
+            var user = await UserManager.GetUserAsync(userPrincipal);
+            if (user != null)
+            {
+                userDisplayName = user.FullName;
+                if (string.IsNullOrEmpty(userDisplayName))
+                {
+                    userDisplayName = user.UserName ?? "Director";
+                }
+                if (!string.IsNullOrEmpty(user.ProfilePicturePath))
+                {
+                    profilePictureUrl = user.ProfilePicturePath;
+                }
+            }
+            else
+            {
+                userDisplayName = userPrincipal.Identity.Name ?? "Director";
+            }
         }
         else
         {

@@ -139,9 +139,14 @@
                         {
                             foreach (var url in urls)
                             {
-                                <a href="@url" target="_blank" style="display: block; border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: hidden;">
-                                    <img src="@url" style="width: 150px; height: 150px; object-fit: cover; display: block;" alt="Lesson Plan Image" />
-                                </a>
+                                <div style="position: relative; display: inline-block;">
+                                    <a href="@url" target="_blank" style="display: block; border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: hidden;">
+                                        <img src="@url" style="width: 150px; height: 150px; object-fit: cover; display: block;" alt="Lesson Plan Image" />
+                                    </a>
+                                    <a href="@url" download target="_blank" title="Download Image" style="position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.6); color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; text-decoration: none;">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    </a>
+                                </div>
                             }
                         }
                         else

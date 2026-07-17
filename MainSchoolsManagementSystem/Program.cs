@@ -79,6 +79,8 @@ else
     app.UseHsts();
 }
 
+app.UseMiddleware<MainSchoolsManagementSystem.Features.Admin.Middlewares.ErrorLoggingMiddleware>();
+
 app.UseHttpsRedirection();
 
 app.UseStaticFiles();

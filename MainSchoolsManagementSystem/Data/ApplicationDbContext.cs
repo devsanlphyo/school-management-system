@@ -22,7 +22,9 @@ namespace MainSchoolsManagementSystem.Data
         public DbSet<FeedPostComment> FeedPostComments { get; set; }
         public DbSet<UserTrustedDevice> UserTrustedDevices { get; set; }
         public DbSet<Notification> Notifications { get; set; }
-
+        
+        public DbSet<MainSchoolsManagementSystem.Features.Admin.Models.SystemAnnouncement> SystemAnnouncements { get; set; }
+        public DbSet<MainSchoolsManagementSystem.Features.Admin.Models.SystemErrorLog> SystemErrorLogs { get; set; }
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
