@@ -3,6 +3,7 @@
 @implements IDisposable
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Identity
 @using MainSchoolsManagementSystem.Data
 
@@ -23,6 +24,14 @@
                     <span class="badge badge-rose" style="margin-left: auto; padding: 0.15rem 0.4rem; border-radius: 10px; font-size: 0.7rem; min-width: 18px; text-align: center; font-weight: bold; background-color: var(--danger); color: white;">
                         @unreadNotificationsCount
                     </span>
+                }
+            </NavLink>
+            <NavLink class="nav-item" href="director/events" @onclick="CloseSidebar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Events
+                @if (activeAnnouncementCount > 0)
+                {
+                    <span class="events-nav-dot" style="margin-left: auto;"></span>
                 }
             </NavLink>
             <NavLink class='nav-item' href='director/lessonplans' @onclick='CloseSidebar'>
@@ -106,6 +115,8 @@
     private bool isSidebarOpen = false;
     private int unreadNotificationsCount = 0;
     private bool showLogoutConfirm = false;
+    private int activeAnnouncementCount = 0;
+    [Inject] private IDbContextFactory<MainSchoolsManagementSystem.Data.ApplicationDbContext> DbContextFactory { get; set; } = default!;
 
     private void ToggleSidebar() { isSidebarOpen = !isSidebarOpen; }
     private void CloseSidebar() { isSidebarOpen = false; }
@@ -118,6 +129,7 @@
         NavigationManager.LocationChanged += OnLocationChanged;
         MainSchoolsManagementSystem.Features.Notifications.Services.NotificationService.OnNotificationReceived += HandleNotificationReceived;
         await UpdateUnreadCountAsync();
+        await LoadAnnouncementsAsync();
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var userPrincipal = authState.User;
@@ -187,6 +199,14 @@
     private async Task GoBack()
     {
         await JSRuntime.InvokeVoidAsync("history.back");
+    }
+
+    private async Task LoadAnnouncementsAsync()
+    {
+        using var db = await DbContextFactory.CreateDbContextAsync();
+        var now = DateTime.UtcNow;
+        activeAnnouncementCount = await db.SystemAnnouncements
+            .CountAsync(a => a.IsActive && a.StartDate <= now && a.EndDate >= now);
     }
 
     public void Dispose()

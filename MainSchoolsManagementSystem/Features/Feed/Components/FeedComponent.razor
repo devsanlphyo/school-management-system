@@ -10,13 +10,13 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject MainSchoolsManagementSystem.Features.Users.Services.IUserService UserService
 <div class="feed-container">
-  @if (activeAnnouncements != null && activeAnnouncements.Any())
+  @if (activeAnnouncements != null && activeAnnouncements.Any(a => !dismissedAnnouncementIds.Contains(a.Id)))
   {
-      <div class="system-announcements" style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; position: sticky; top: 0; z-index: 100;">
-          @foreach (var announcement in activeAnnouncements)
+      <div class="system-announcements">
+          @foreach (var announcement in activeAnnouncements.Where(a => !dismissedAnnouncementIds.Contains(a.Id)))
           {
-              <div class="announcement-banner" style="background: @(GetAnnouncementColor(announcement.Type)); padding: 1rem 1.25rem; border-radius: 12px; display: flex; align-items: flex-start; gap: 1rem; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-                  <div class="announcement-icon" style="margin-top: 2px;">
+              <div class="announcement-banner announcement-banner-@(announcement.Type.ToLower())">
+                  <div class="announcement-icon">
                       @if (announcement.Type == "Warning")
                       {
                           <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
@@ -34,9 +34,12 @@
                           <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
                       }
                   </div>
-                  <div class="announcement-text" style="flex: 1; font-weight: 500; line-height: 1.5; font-size: 0.95rem;">
-                      @announcement.Message
-                  </div>
+                  <div class="announcement-text">@announcement.Message</div>
+                  <button class="announcement-dismiss-btn"
+                          @onclick="() => DismissAnnouncement(announcement.Id)"
+                          title="Dismiss — you can re-read this in Events">
+                      <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
               </div>
           }
       </div>
@@ -59,17 +62,30 @@
   </div>
   
   <Microsoft.AspNetCore.Components.Sections.SectionContent SectionName="top-navbar-center">
-      <div class="feed-search-bar" style="width: 100%; min-width: 300px; position: relative;">
-          <input type="text" @bind="searchQuery" @bind:event="oninput" placeholder="Search users by name..." class="form-control" style="width: 100%; padding: 0.5rem 1rem; border-radius: 20px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);" />
-          
+      <div class="feed-search-wrapper">
+          <div class="feed-search-bar">
+              <svg class="feed-search-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text"
+                     @bind="searchQuery"
+                     @bind:event="oninput"
+                     placeholder="Search users..."
+                     class="feed-search-input" />
+              @if (!string.IsNullOrWhiteSpace(searchQuery))
+              {
+                  <button class="feed-search-clear" @onclick="() => searchQuery = string.Empty" tabindex="-1" title="Clear">
+                      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
+              }
+          </div>
+
           @if (!string.IsNullOrWhiteSpace(searchQuery))
           {
-              <div class="search-dropdown-menu" style="position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: var(--shadow-lg); z-index: 1000; margin-top: 0.5rem; max-height: 300px; overflow-y: auto;">
+              <div class="feed-search-dropdown">
                   @if (matchingUsers.Any())
                   {
                       @foreach (var user in matchingUsers)
                       {
-                          <div class="search-dropdown-item" @onclick="() => NavigateToProfile(user.Id)" style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; cursor: pointer; border-bottom: 1px solid var(--border-2); transition: background 0.15s;">
+                          <div class="search-dropdown-item" @onclick="() => NavigateToProfile(user.Id)">
                               <div class="feed-avatar" style="width: 32px; height: 32px; border-radius: 50%; font-size: 0.85rem; flex-shrink: 0; background: #eef2ff; color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; border: 1px solid rgba(79, 70, 229, 0.2);">
                                   @if (!string.IsNullOrEmpty(user.ProfilePicturePath))
                                   {
@@ -90,7 +106,7 @@
                   else
                   {
                       <div style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.88rem;">
-                          No users found matching "@searchQuery"
+                          No users found matching &quot;@searchQuery&quot;
                       </div>
                   }
               </div>
@@ -379,6 +395,8 @@
         ).Take(10).ToList();
 
     private List<MainSchoolsManagementSystem.Features.Admin.Models.SystemAnnouncement>? activeAnnouncements;
+    private HashSet<int> dismissedAnnouncementIds = new();
+    private int activeAnnouncementCount => activeAnnouncements?.Count(a => !dismissedAnnouncementIds.Contains(a.Id)) ?? 0;
     private string? currentUserId;
     private HashSet<int> openCommentSections = new HashSet<int>();
     private Dictionary<int, string> newCommentText = new Dictionary<int, string>();
@@ -451,6 +469,11 @@
             "Success" => "linear-gradient(135deg, #10b981, #059669)",
             _ => "linear-gradient(135deg, #3b82f6, #2563eb)" // Info
         };
+    }
+
+    private void DismissAnnouncement(int id)
+    {
+        dismissedAnnouncementIds.Add(id);
     }
 
     private string GetInitials(string name)

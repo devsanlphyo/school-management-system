@@ -412,21 +412,21 @@ h1, h2, h3, h4, h5, h6 {
     padding: 0.75rem 0.6rem;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.4rem;
     overflow-y: auto;
 }
 
 .nav-item {
     display: flex;
     align-items: center;
-    padding: 0.55rem 0.65rem;
+    padding: 0.7rem 0.85rem;
     color: var(--text-muted);
     text-decoration: none;
     border-radius: var(--radius-sm);
     font-weight: 500;
-    font-size: 0.82rem;
+    font-size: 0.86rem;
     transition: var(--transition-smooth);
-    gap: 0.55rem;
+    gap: 0.75rem;
 }
 
 .nav-item:hover {
@@ -671,7 +671,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .premium-table th {
     text-align: left;
-    padding: .55rem .75rem;
+    padding: .8rem 1rem;
     font-size: .66rem;
     font-weight: 700;
     letter-spacing: .06em;
@@ -682,7 +682,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .premium-table td {
-    padding: .7rem .75rem;
+    padding: 1rem;
     border-bottom: 1px solid var(--border-color);
     color: var(--text-primary);
 }
@@ -699,8 +699,8 @@ h1, h2, h3, h4, h5, h6 {
 .form-group {
     display: flex;
     flex-direction: column;
-    gap: .3rem;
-    margin-bottom: 1rem;
+    gap: .4rem;
+    margin-bottom: 1.25rem;
 }
 
 .form-label {
@@ -718,7 +718,7 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-primary);
     font-family: inherit;
     font-size: .835rem;
-    padding: .6rem .85rem;
+    padding: .7rem .95rem;
     outline: none;
     width: 100%;
     transition: border-color .15s, box-shadow .15s;
@@ -2512,5 +2512,435 @@ h1, h2, h3, h4, h5, h6 {
         height: 100px !important;
         border-width: 4px !important;
         font-size: 2.5rem !important;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE UX FIXES — Dynamic Viewport, Overflow, Responsive Layout
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Fix 1: Dynamic viewport height — iOS Safari address-bar-aware */
+.admin-layout          { min-height: 100dvh; }
+.admin-sidebar         { height: 100dvh; }
+.create-post-layout-container { height: 100dvh; }
+.modal-body-custom     { max-height: 70dvh; -webkit-overflow-scrolling: touch; }
+
+/* Fix 2: Prevent horizontal overflow on main content */
+.admin-main            { overflow-x: hidden; }
+
+/* Fix 3: Very small phone — single-column dashboard */
+@media (max-width: 480px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Fix 4: Mobile-specific overrides */
+@media (max-width: 768px) {
+
+    /* Header username — hide text, keep avatar */
+    .header-user-name {
+        display: none !important;
+    }
+
+    /* Tab navigation — horizontal scroll instead of overflow */
+    .tab-navigation {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Tables — smaller padding so they breathe inside scroll containers */
+    .premium-table th,
+    .premium-table td {
+        padding: 0.6rem 0.65rem !important;
+        font-size: 0.78rem !important;
+    }
+    .table-container {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Create-post page spacing */
+    .create-post-body    { padding: 1rem 0.75rem !important; }
+    .create-post-navbar  { padding: 0 1rem !important; }
+    .create-post-footer  { padding: 0.75rem 1rem !important; }
+
+    /* Lightbox — stack vertically on mobile */
+    .lightbox-split-container   { flex-direction: column; }
+    .lightbox-main-media-section {
+        height: 50dvh;
+        flex: none;
+    }
+    .lightbox-sidebar-section {
+        width: 100%;
+        height: 50dvh;
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+    }
+    .lightbox-nav-btn   { width: 36px; height: 36px; }
+    .lightbox-media-wrapper { padding: 1rem; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FEED SEARCH BAR — Responsive Pill Search in Top Navbar
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Outer positioning wrapper — fills the center slot flex container */
+.feed-search-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 320px;    /* caps width on desktop so it doesn't span full bar */
+}
+
+/* The pill-shaped input row */
+.feed-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--bg-base);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 0.4rem 0.75rem;
+    transition: border-color 0.15s, background 0.15s;
+    width: 100%;
+}
+
+.feed-search-bar:focus-within {
+    border-color: var(--primary);
+    background: var(--bg-surface);
+}
+
+.feed-search-icon {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
+.feed-search-input {
+    flex: 1;
+    min-width: 0;           /* allows shrinking below content size */
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.875rem;
+}
+
+.feed-search-input::placeholder {
+    color: var(--text-muted);
+}
+
+/* Clear (×) button inside the pill */
+.feed-search-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 2px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: color 0.15s, background 0.15s;
+}
+
+.feed-search-clear:hover {
+    color: var(--text-primary);
+    background: var(--border-color);
+}
+
+/* Dropdown results panel */
+.feed-search-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    z-index: 9999;
+    max-height: 300px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.search-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: background 0.12s;
+}
+
+.search-dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.search-dropdown-item:hover {
+    background: var(--bg-base);
+}
+
+/* Mobile — allow search bar to shrink to full available space */
+@media (max-width: 768px) {
+    .feed-search-wrapper {
+        max-width: 100%;   /* drop the 320px cap — just use whatever center slot gives */
+    }
+
+    .feed-search-input {
+        font-size: 0.8rem;
+    }
+
+    /* Dropdown: left-align to viewport edge, not just the pill */
+    .feed-search-dropdown {
+        left: -0.5rem;
+        right: -0.5rem;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ANNOUNCEMENT BANNER — Dismissible Feed Pills
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.system-announcements {
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.announcement-banner {
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    color: white;
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* Type-specific gradients */
+.announcement-banner-info    { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.announcement-banner-warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.announcement-banner-error   { background: linear-gradient(135deg, #ef4444, #dc2626); }
+.announcement-banner-success { background: linear-gradient(135deg, #10b981, #059669); }
+
+.announcement-icon {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    opacity: 0.92;
+}
+
+.announcement-text {
+    flex: 1;
+    font-weight: 500;
+    line-height: 1.5;
+    font-size: 0.92rem;
+    min-width: 0;
+}
+
+/* ×  Dismiss button */
+.announcement-dismiss-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.20);
+    border: 1px solid rgba(255, 255, 255, 0.30);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    color: white;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+}
+
+.announcement-dismiss-btn:hover {
+    background: rgba(255, 255, 255, 0.35);
+    transform: scale(1.08);
+}
+
+/* Mobile — smaller text, still readable */
+@media (max-width: 768px) {
+    .announcement-banner {
+        padding: 0.75rem 0.85rem;
+        gap: 0.65rem;
+    }
+    .announcement-text {
+        font-size: 0.84rem;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EVENTS NAV DOT — Live badge in sidebar
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.events-nav-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary);
+    flex-shrink: 0;
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.55; transform: scale(0.8); }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EVENTS PAGE — Full announcement cards
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.events-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    max-width: 740px;
+}
+
+.events-page-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.events-page-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.events-page-heading {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+    letter-spacing: -0.02em;
+}
+
+.events-page-subtitle {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.events-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3rem 2rem;
+    text-align: center;
+}
+
+.events-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.event-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    display: flex;
+    gap: 1rem;
+    padding: 1.25rem;
+    transition: var(--transition-smooth);
+    border-left-width: 4px;
+}
+
+.event-card:hover {
+    border-color: var(--border-2);
+    background: var(--bg-base);
+}
+
+/* Left-border accent per type */
+.event-card-info    { border-left-color: #3b82f6; }
+.event-card-warning { border-left-color: #f59e0b; }
+.event-card-error   { border-left-color: #ef4444; }
+.event-card-success { border-left-color: #10b981; }
+
+.event-card-icon-col {
+    flex-shrink: 0;
+    padding-top: 2px;
+}
+
+.event-type-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+}
+
+.event-icon-info    { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+.event-icon-warning { background: rgba(245, 158, 11, 0.12);  color: #f59e0b; }
+.event-icon-error   { background: rgba(239, 68, 68, 0.12);   color: #ef4444; }
+.event-icon-success { background: rgba(16, 185, 129, 0.12);  color: #10b981; }
+
+.event-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.event-card-top {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.event-type-badge {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+}
+
+.event-badge-info    { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.event-badge-warning { background: rgba(245, 158, 11, 0.1);  color: #f59e0b; }
+.event-badge-error   { background: rgba(239, 68, 68, 0.1);   color: #ef4444; }
+.event-badge-success { background: rgba(16, 185, 129, 0.1);  color: #10b981; }
+
+.event-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.event-message {
+    font-size: 0.92rem;
+    color: var(--text-primary);
+    line-height: 1.55;
+    margin: 0;
+    word-break: break-word;
+}
+
+@media (max-width: 768px) {
+    .event-card {
+        padding: 1rem;
+        gap: 0.75rem;
+    }
+    .event-type-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
     }
 }
