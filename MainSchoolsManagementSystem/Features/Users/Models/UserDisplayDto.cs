@@ -10,5 +10,6 @@ namespace MainSchoolsManagementSystem.Features.Users.Models
         public string? SchoolName { get; set; }
         public int? DepartmentId { get; set; }
         public string? DepartmentName { get; set; }
+        public string? ProfilePicturePath { get; set; }
     }
 }

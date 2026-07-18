@@ -15,9 +15,7 @@
 
     <!-- Sidebar -->
     <aside class="admin-sidebar @(isSidebarOpen ? "open" : "")">
-        <div class="sidebar-header">
-            <span class="brand-title">HelloTwo Headmaster</span>
-        </div>
+        <MainSchoolsManagementSystem.Components.Shared.BrandLogo Role="Headmaster" />
         <nav class="sidebar-nav">
             <NavLink class="nav-item" href="headmaster/feed" @onclick="CloseSidebar">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1"></circle></svg>

@@ -9,14 +9,14 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
 
-<PageTitle>Global Teacher Attendance - Director</PageTitle>
+<PageTitle>Global Staff Attendance - Director</PageTitle>
 
 <div class="d-flex flex-column gap-4">
     <!-- Header -->
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
         <div>
-            <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Global Teacher Attendance</h2>
-            <p style="color: var(--text-secondary); font-size: 0.9rem;">View attendance records for all teachers across all schools.</p>
+            <h2 style="font-size: 1.75rem; margin-bottom: 0.25rem;">Global Staff Attendance</h2>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">View attendance records for all teachers, officers, and assistants across all schools.</p>
         </div>
         
         <!-- Date Selector -->
@@ -78,7 +78,7 @@
             <table class="premium-table">
                 <thead>
                     <tr>
-                        <th>Teacher</th>
+                        <th>Staff Member</th>
                         <th>Status</th>
                         <th>Check-in Time</th>
                     </tr>
@@ -90,8 +90,11 @@
                         {
                             <tr>
                                 <td>
-                                    <div style="font-weight: 600; color: var(--text-primary);">@record.Teacher.FullName</div>
-                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">School: @(GetSchoolName(record.Teacher.SchoolId))</div>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <span style="font-weight: 600; color: var(--text-primary);">@record.User.FullName</span>
+                                        <span class="badge" style="background-color: var(--border-color); color: var(--text-secondary); font-size: 0.7rem; padding: 0.1rem 0.35rem;">@record.Role</span>
+                                    </div>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.15rem;">School: @(GetSchoolName(record.User.SchoolId))</div>
                                 </td>
                                 <td>
                                     @if (record.Attendance == null)
@@ -124,7 +127,7 @@
                     {
                         <tr>
                             <td colspan="3" style="text-align: center; padding: 3rem; color: var(--text-muted);">
-                                No teachers found.
+                                No staff found.
                             </td>
                         </tr>
                     }
@@ -136,7 +139,7 @@
 
 @code {
     private DateTime selectedDate = DateTime.Today;
-    private List<TeacherAttendanceRecord> teachersAttendance = new();
+    private List<StaffAttendanceRecord> staffAttendance = new();
     private List<School> schools = new();
     private int? activeSchoolId = null;
     private string activeStatus = "all";
@@ -169,18 +172,31 @@
 
     private async Task LoadAttendanceData()
     {
-        // Fetch all teachers in system
-        var allTeachersInRole = await UserService.GetUsersByRolesAsync(new List<string> { "Teacher" });
-        var allTeachers = allTeachersInRole.ToList();
+        // Fetch all staff members globally
+        var allTeachers = await UserService.GetUsersByRolesAsync(new List<string> { "Teacher" });
+        var allOfficers = await UserService.GetUsersByRolesAsync(new List<string> { "Officer" });
+        var allAssistants = await UserService.GetUsersByRolesAsync(new List<string> { "Assistant" });
+
+        var records = new List<StaffAttendanceRecord>();
+        
+        foreach (var u in allTeachers) 
+            records.Add(new StaffAttendanceRecord { User = u, Role = "Teacher" });
+            
+        foreach (var u in allOfficers) 
+            records.Add(new StaffAttendanceRecord { User = u, Role = "Officer" });
+            
+        foreach (var u in allAssistants) 
+            records.Add(new StaffAttendanceRecord { User = u, Role = "Assistant" });
 
         // Fetch attendance records for the selected date globally
         var attendanceRecords = await AttendanceService.GetAttendancesByDateAsync(selectedDate);
 
-        teachersAttendance = allTeachers.Select(teacher => new TeacherAttendanceRecord
+        foreach (var record in records)
         {
-            Teacher = teacher,
-            Attendance = attendanceRecords.FirstOrDefault(a => a.UserId == teacher.Id)
-        }).OrderBy(r => r.Teacher.SchoolId).ThenBy(r => r.Teacher.FullName).ToList();
+            record.Attendance = attendanceRecords.FirstOrDefault(a => a.UserId == record.User.Id);
+        }
+
+        staffAttendance = records.OrderBy(r => r.User.SchoolId).ThenBy(r => r.User.FullName).ToList();
 
         CalculateStats();
     }
@@ -195,14 +211,14 @@
         absentCount = filtered.Count(r => r.Attendance == null || r.Attendance.Status == AttendanceStatus.Absent);
     }
 
-    private IEnumerable<TeacherAttendanceRecord> GetSchoolFilteredAttendance()
+    private IEnumerable<StaffAttendanceRecord> GetSchoolFilteredAttendance()
     {
         if (activeSchoolId == null)
-            return teachersAttendance;
-        return teachersAttendance.Where(r => r.Teacher.SchoolId == activeSchoolId);
+            return staffAttendance;
+        return staffAttendance.Where(r => r.User.SchoolId == activeSchoolId);
     }
 
-    private IEnumerable<TeacherAttendanceRecord> GetFilteredAttendance()
+    private IEnumerable<StaffAttendanceRecord> GetFilteredAttendance()
     {
         var filtered = GetSchoolFilteredAttendance();
         
@@ -236,9 +252,10 @@
         return schools.FirstOrDefault(s => s.Id == schoolId)?.Name ?? "N/A";
     }
 
-    public class TeacherAttendanceRecord
+    public class StaffAttendanceRecord
     {
-        public UserDisplayDto Teacher { get; set; } = null!;
+        public UserDisplayDto User { get; set; } = null!;
+        public string Role { get; set; } = "";
         public MainSchoolsManagementSystem.Features.Attendance.Models.Attendance? Attendance { get; set; }
     }
 }

@@ -208,12 +208,22 @@
         <p class="upload-progress-text">Uploading files and creating post...</p>
       }
 
-      <!-- Submit Button -->
-      <button class="post-submit-btn" 
-              @onclick="SubmitPost" 
-              disabled="@(isSubmitting || (string.IsNullOrWhiteSpace(postContent) && !selectedFiles.Any() && !(existingMedia?.Any() ?? false)))">
-        @(isSubmitting ? (PostId.HasValue ? "Saving..." : "Posting...") : (PostId.HasValue ? "Save" : "Post"))
-      </button>
+      <!-- Action Buttons Row -->
+      <div style="display: flex; gap: 0.75rem; width: 100%; margin-top: 1rem;">
+        <button class="btn-premium btn-secondary-custom" 
+                style="flex: 1; padding: 0.75rem; justify-content: center; font-size: 0.9rem;" 
+                @onclick="GoBack" 
+                disabled="@isSubmitting"
+                type="button">
+          Cancel
+        </button>
+        <button class="post-submit-btn" 
+                style="flex: 2; margin: 0;"
+                @onclick="SubmitPost" 
+                disabled="@(isSubmitting || (string.IsNullOrWhiteSpace(postContent) && !selectedFiles.Any() && !(existingMedia?.Any() ?? false)))">
+          @(isSubmitting ? (PostId.HasValue ? "Saving..." : "Posting...") : (PostId.HasValue ? "Save" : "Post"))
+        </button>
+      </div>
     </div>
   </footer>
 </div>
@@ -344,8 +354,9 @@
         await JSRuntime.InvokeVoidAsync("window.feedUpload.clearFiles");
     }
 
-    private void GoBack()
+    private async Task GoBack()
     {
+        await ClearFiles();
         NavigationManager.NavigateTo($"/{CurrentRole.ToLower()}/feed");
     }
     
@@ -426,6 +437,7 @@
     {
         dotNetRef?.Dispose();
         try {
+            await ClearFiles();
             await JSRuntime.InvokeVoidAsync("window.feedUpload.init", null);
         } catch { }
     }

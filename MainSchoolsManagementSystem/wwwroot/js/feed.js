@@ -17,6 +17,12 @@ window.feedUpload = {
 
     removeFile: function (index) {
         if(index >= 0 && index < this.selectedFiles.length) {
+            var file = this.selectedFiles[index];
+            if (file._previewUrl) {
+                try {
+                    URL.revokeObjectURL(file._previewUrl);
+                } catch(e) {}
+            }
             this.selectedFiles.splice(index, 1);
             this.notifyBlazor();
         }
@@ -26,7 +32,10 @@ window.feedUpload = {
         var fileInfos = this.selectedFiles.map(f => {
             var url = '';
             if (f.type.startsWith('image/') || f.type.startsWith('video/')) {
-                url = URL.createObjectURL(f);
+                if (!f._previewUrl) {
+                    f._previewUrl = URL.createObjectURL(f);
+                }
+                url = f._previewUrl;
             }
             return { name: f.name, size: f.size, type: f.type, previewUrl: url };
         });
@@ -36,6 +45,13 @@ window.feedUpload = {
     },
 
     clearFiles: function () {
+        this.selectedFiles.forEach(f => {
+            if (f._previewUrl) {
+                try {
+                    URL.revokeObjectURL(f._previewUrl);
+                } catch(e) {}
+            }
+        });
         this.selectedFiles = [];
         var inputs = document.querySelectorAll('input[type="file"]');
         inputs.forEach(input => {

@@ -54,7 +54,8 @@ namespace MainSchoolsManagementSystem.Features.Users.Services
                     SchoolId = user.SchoolId,
                     SchoolName = user.School?.Name,
                     DepartmentId = user.DepartmentId,
-                    DepartmentName = user.Department?.Name
+                    DepartmentName = user.Department?.Name,
+                    ProfilePicturePath = user.ProfilePicturePath
                 });
             }
 
@@ -83,7 +84,8 @@ namespace MainSchoolsManagementSystem.Features.Users.Services
                 SchoolId = user.SchoolId,
                 SchoolName = user.School?.Name,
                 DepartmentId = user.DepartmentId,
-                DepartmentName = user.Department?.Name
+                DepartmentName = user.Department?.Name,
+                ProfilePicturePath = user.ProfilePicturePath
             };
         }
 

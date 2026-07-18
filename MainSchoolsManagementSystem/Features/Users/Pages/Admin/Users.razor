@@ -20,10 +20,17 @@
     </div>
 
     <!-- Filters Bar -->
-    <div class="glass-panel" style="padding: 1.25rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
+    <div class="glass-panel" style="padding: 1.25rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
+        <div style="flex: 2; min-width: 260px;">
+            <label class="form-label" style="margin-bottom: 0.35rem;">Search User</label>
+            <div style="position: relative;">
+                <input type="text" class="form-control-custom" placeholder="Search by name or email..." @bind-value="searchTextFilter" @bind-value:event="oninput" style="padding-left: 2.5rem; width: 100%;" />
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 0.95rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </div>
+        </div>
         <div style="flex: 1; min-width: 200px;">
             <label class="form-label" style="margin-bottom: 0.35rem;">Role Filter</label>
-            <select class="form-control-custom" @bind="selectedRoleFilter">
+            <select class="form-control-custom" @bind="selectedRoleFilter" style="width: 100%;">
                 <option value="">All Roles</option>
                 <option value="Headmaster">Headmaster</option>
                 <option value="Director">Director</option>
@@ -35,7 +42,7 @@
         </div>
         <div style="flex: 1; min-width: 200px;">
             <label class="form-label" style="margin-bottom: 0.35rem;">School Filter</label>
-            <select class="form-control-custom" @bind="selectedSchoolFilter">
+            <select class="form-control-custom" @bind="selectedSchoolFilter" style="width: 100%;">
                 <option value="">All Schools</option>
                 @foreach (var school in schools)
                 {
@@ -142,7 +149,12 @@
 
                 <div class="form-group">
                     <label class="form-label">Password</label>
-                    <input type="password" class="form-control-custom" placeholder="Minimum 6 characters" @bind="registerPassword" />
+                    <div style="position: relative;">
+                        <input id="admin-create-password" type="password" class="form-control-custom" placeholder="Minimum 6 characters" @bind="registerPassword" style="padding-right: 2.75rem;" />
+                        <button type="button" onclick="togglePasswordVisibility('admin-create-password', this)" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; padding: 0.25rem; z-index: 10;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -387,7 +399,12 @@
                 <p style="font-size: 0.85rem; color: var(--text-muted);">Resetting password for <strong>@resetPasswordAdmin.Email</strong>.</p>
                 <div class="form-group">
                     <label class="form-label">New Password</label>
-                    <input type="password" class="form-control-custom" placeholder="Enter new password" @bind="newPasswordForReset" />
+                    <div style="position: relative;">
+                        <input id="admin-reset-password" type="password" class="form-control-custom" placeholder="Enter new password" @bind="newPasswordForReset" style="padding-right: 2.75rem;" />
+                        <button type="button" onclick="togglePasswordVisibility('admin-reset-password', this)" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; padding: 0.25rem; z-index: 10;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </button>
+                    </div>
                 </div>
                 @if (!string.IsNullOrEmpty(validationError))
                 {
@@ -431,6 +448,7 @@
     private string editSchoolId = "";
     private string editDeptId = "";
     private List<Department> editSchoolDepartments = new();
+    private string searchTextFilter = "";
 
     private bool showAssignmentsModal = false;
     private UserDisplayDto? selectedTeacher;
@@ -463,6 +481,13 @@
             {
                 int.TryParse(selectedSchoolFilter, out int schoolId);
                 result = result.Where(a => a.SchoolId == schoolId);
+            }
+            if (!string.IsNullOrWhiteSpace(searchTextFilter))
+            {
+                result = result.Where(a => 
+                    (a.FullName != null && a.FullName.Contains(searchTextFilter, StringComparison.OrdinalIgnoreCase)) ||
+                    (a.Email != null && a.Email.Contains(searchTextFilter, StringComparison.OrdinalIgnoreCase))
+                );
             }
             return result;
         }

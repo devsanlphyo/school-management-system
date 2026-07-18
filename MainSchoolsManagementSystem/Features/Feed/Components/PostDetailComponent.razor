@@ -64,6 +64,27 @@
                   @post.Content
               </div>
 
+              @if (post.MediaItems != null && post.MediaItems.Any())
+              {
+                  <div class="media-preview-container" style="margin-top: 1rem; margin-bottom: 1.25rem;">
+                      <div class="media-preview-grid count-@Math.Min(4, post.MediaItems.Count)">
+                          @foreach (var media in post.MediaItems.OrderBy(m => m.SortOrder))
+                          {
+                              <div class="preview-item">
+                                  @if (media.ContentType != null && media.ContentType.StartsWith("image/"))
+                                  {
+                                      <img src="/api/feed/media/@media.StoredFileName/view" class="preview-image" @onclick="() => OpenLightbox(media.StoredFileName)" style="cursor: pointer;" />
+                                  }
+                                  else if (media.ContentType != null && media.ContentType.StartsWith("video/"))
+                                  {
+                                      <video src="/api/feed/media/@media.StoredFileName/view" class="preview-video" muted controls></video>
+                                  }
+                              </div>
+                          }
+                      </div>
+                  </div>
+              }
+
               <!-- Post Stats -->
               <div class="post-stats-row" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color); font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">
                   <div class="post-stats-likes" style="display: flex; align-items: center; gap: 4px;">
@@ -172,6 +193,18 @@
                 <button class="confirm-btn cancel" @onclick="CancelDelete">Cancel</button>
                 <button class="confirm-btn delete" @onclick="ConfirmDelete">Delete</button>
             </div>
+        </div>
+    </div>
+}
+
+@if (activeLightboxImage != null)
+{
+    <div class="confirm-modal-backdrop" @onclick="CloseLightbox" style="background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+        <div style="position: relative; max-width: 90%; max-height: 90%;" @onclick:stopPropagation>
+            <button @onclick="CloseLightbox" style="position: absolute; right: -40px; top: -40px; background: none; border: none; color: white; font-size: 2rem; cursor: pointer;">
+                <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <img src="/api/feed/media/@activeLightboxImage/view" style="max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);" />
         </div>
     </div>
 }
@@ -300,4 +333,8 @@
         if (span.TotalHours < 24) return $"{(int)span.TotalHours} hours ago";
         return $"{(int)span.TotalDays} days ago";
     }
+
+    private string? activeLightboxImage;
+    private void OpenLightbox(string storedFileName) => activeLightboxImage = storedFileName;
+    private void CloseLightbox() => activeLightboxImage = null;
 }
